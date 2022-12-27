@@ -100,3 +100,60 @@ Resources:
 ├─ { amount: 1, resource address: resource_sim1qr4wzvkk33lcpf846rmlfwfez6f339el7y5f7vpnt7pqr59km6 }
 │  └─ NonFungible { id: NonFungibleId(1u32), immutable_data: Tuple(), mutable_data: Tuple() }
 └─ { amount: 1, resource address: resource_sim1qqs33nacnn6jv4vt68ddr5vhcmxsf2zfl0g2r6ua6twspwu3yg, name: "HelloToken", symbol: "HT" }
+
+// Swap 
+// Give fees to OCI owners
+// Concentrated liquidity?
+// Fee? Decimal?
+// base_amount
+
+resim call-function $pawspackage Ocipaws instantiate_ocipaws
+Transaction Status: COMMITTED SUCCESS
+Transaction Fee: 0.046051845 XRD used for execution, 0 XRD used for royalty, 0 XRD in bad debt
+Cost Units: 100000000 limit, 438589 consumed, 0.0000001 XRD per cost unit, 5% tip
+Logs: 0
+Instructions:
+├─ CALL_METHOD ComponentAddress("component_sim1qftacppvmr9ezmekxqpq58en0nk954x0a7jv2zz0hc7q8utaxr") "lock_fee" Decimal("100");
+├─ CALL_FUNCTION PackageAddress("package_sim1q95xv77vtant35f84hjv38vcelvz4ky6hk6udyqw2whs269c9s") "Ocipaws" "instantiate_ocipaws";
+└─ CALL_METHOD ComponentAddress("account_sim1q0deqy0uzeqsxzxlvfzw27ww2s85ksgz9e5w2ralu3qsczkapr") "deposit_batch" Expression("ENTIRE_WORKTOP");
+Instruction Outputs:
+├─ ()
+├─ ComponentAddress("component_sim1qtnynf94nlcrpstrc079dz6249jrqfaaxsl3l6agx0rqvcteuy")
+└─ ()
+New Entities: 3
+└─ Component: component_sim1qtnynf94nlcrpstrc079dz6249jrqfaaxsl3l6agx0rqvcteuy
+├─ Resource: resource_sim1qrsfh906ws3hjr5g4h6ar3th5ufpfn0sm6n583xp763saedzmc
+└─ Resource: resource_sim1qzt979upwjulnql74w8y7mwn4qcdqmn43qy8y5ghgfjqf9mzru
+
+export pawscomponent=component_sim1qtnynf94nlcrpstrc079dz6249jrqfaaxsl3l6agx0rqvcteuy
+
+resim call-method $pawscomponent paws
+
+Transaction Status: COMMITTED FAILURE: ApplicationError(VaultError(ResourceOperationError(ResourceAddressNotMatching)))
+Transaction Fee: 0.17540418 XRD used for execution, 0 XRD used for royalty, 0 XRD in bad debt
+Cost Units: 100000000 limit, 1670516 consumed, 0.0000001 XRD per cost unit, 5% tip
+Logs: 2
+├─ [INFO ] My balance is: 1000 TokenA. Now giving swaping a token!
+└─ [INFO ] My balance is: 1000 TokenB. Now giving swaping a token!
+Instructions:
+├─ CALL_METHOD ComponentAddress("component_sim1qftacppvmr9ezmekxqpq58en0nk954x0a7jv2zz0hc7q8utaxr") "lock_fee" Decimal("100");
+├─ CALL_METHOD ComponentAddress("component_sim1qtnynf94nlcrpstrc079dz6249jrqfaaxsl3l6agx0rqvcteuy") "paws";
+└─ CALL_METHOD ComponentAddress("account_sim1q0deqy0uzeqsxzxlvfzw27ww2s85ksgz9e5w2ralu3qsczkapr") "deposit_batch" Expression("ENTIRE_WORKTOP");
+New Entities: 0
+
+
+
+resim publish . --owner-badge resource_sim1qr4wzvkk33lcpf846rmlfwfez6f339el7y5f7vpnt7pqr59km6:U32#1
+export pawspackage=package_sim1q95xv77vtant35f84hjv38vcelvz4ky6hk6udyqw2whs269c9s 
+
+// Republish same package IF STRUCT NOT CHANGED
+resim publish . --package-address $pawspackage
+
+resim call-function $pawspackage Ocipaws instantiate_ocipaws
+export pawscomponent=component_sim1qtnynf94nlcrpstrc079dz6249jrqfaaxsl3l6agx0rqvcteuy
+resim call-method $pawscomponent paws 
+resim show $pawscomponent 
+
+// Badge to access?
+
+resim call-method $pawscomponent paws "10,resource_sim1qzkcyv5dwq3r6kawy6pxpvcythx8rh8ntum6ws62p95sqjjpwr" "1,resource_sim1qzkcyv5dwq3r6kawy6pxpvcythx8rh8ntum6ws62p95sqjjpwr"
