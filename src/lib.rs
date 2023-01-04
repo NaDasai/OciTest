@@ -73,7 +73,7 @@ blueprint! {
         }
 
         // This is a method, because it needs a reference to self.  Methods can only be called on components
-        pub fn paws(&mut self, mut swap : Bucket, receivedAddress : ResourceAddress) -> (Bucket, Bucket) {
+        pub fn paws(&mut self, mut swap : Bucket, received_address : ResourceAddress) -> (Bucket, Bucket) {
 
             // info!("My balance is: {} HelloToken. Now giving away a token!", self.sample_vault.amount());
             info!("My balance is: {} TokenA. Now swapping a token!", self.a_vault.amount());
@@ -85,15 +85,14 @@ blueprint! {
 
             //assert_ne!(swap.resource_address(), self.xrd_vault.resource_address(),"Need XRD!");
 
-            let a_ad = self.a_vault.resource_address();
-            let b_ad = self.b_vault.resource_address();
-
             self.xrd_vault.put(swap.take(swap.amount())); //  + (swap.amount() * self.fee)
 
-            match receivedAddress {
-                a_ad if a_ad == receivedAddress => {return(self.a_vault.take(swap.amount() * *self.pools.get(&receivedAddress).unwrap()), swap)},
-                b_ad if b_ad == receivedAddress => {return(self.b_vault.take(swap.amount() * *self.pools.get(&receivedAddress).unwrap()), swap)},
-                _ => panic!("Address not found!"),
+            if received_address == self.a_vault.resource_address() {
+                return (self.a_vault.take(swap.amount() * *self.pools.get(&received_address).unwrap()), swap);
+            } else if received_address == self.b_vault.resource_address() {
+                return (self.b_vault.take(swap.amount() * *self.pools.get(&received_address).unwrap()), swap);
+            } else {
+                panic!("Address not found!");
             }
 
         }
