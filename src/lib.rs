@@ -2,29 +2,20 @@ use scrypto::prelude::*;
 
 blueprint! {
     struct Ocipaws {
-        // Define what resources and data will be managed by Hello components
-        // Vault where Radix Engine stores assets.
-        // sample_vault: Vault
         a_vault : Vault,
         b_vault : Vault,
         xrd_vault : Vault,
+        // Fee should be defined at instanciation.
         fee : Decimal,
-        pools : HashMap<ResourceAddress, Decimal>
+        // The idea is to have price update through this Hashmap.
+        pools : HashMap<ResourceAddress, Decimal>,
+
+        lp_NFTs : Vault
     }
 
     impl Ocipaws {
-        // Implement the functions and methods which will manage those resources and data
 
-        // This is a function, and can be called directly on the blueprint once deployed
-        // Instantiate to be a component.
-        pub fn instantiate_ocipaws(fee : Decimal) -> ComponentAddress {
-            // Create a new token called "HelloToken," with a fixed supply of 1000, and put that supply into a bucket
-            // Bucket to hold tokens.
-            // let my_bucket: Bucket = ResourceBuilder::new_fungible()
-            //  //.divisibility(DIVISIBILITY_MAXIMUM)
-            //     .metadata("name", "HelloToken")
-            //     .metadata("symbol", "HT")
-            //     .initial_supply(1000);
+        pub fn instantiate_ocipaws(fee : Decimal) -> (ComponentAddress, Bucket) {
 
             assert!((fee >= Decimal::zero()) & (fee <= dec!("100")), "Fee must be between 0 and 100");
 
@@ -38,50 +29,74 @@ blueprint! {
               .metadata("symbol", "TB")
               .initial_supply(1000);
 
-                //   let badge: Bucket = ResourceBuilder::new_fungible()
-                //      .metadata("name", "Admin badge")
-                //      .divisibility(DIVISIBILITY_NONE) // must be before we create the badge
-                //      .initial_supply(1);
-                
-    // // Define the access rules
-    // let access_rules = AccessRules::new()
-    //     .method("ban_member", rule!(require_any_of(vec![admin_badge_address, moderator_badge_address])), AccessRule::DenyAll)
-    //     .method("destroy", rule!(require(admin_badge_address) && require_amount(dec!(2), moderator_badge_address)), AccessRule::DenyAll)
-    //     .default(AccessRule::AllowAll, AccessRule::DenyAll);
-
-    // // Attach the access rules to the component
-    // component.add_access_check(access_rules);
-
-
-
+            // For test purpose, we'll be giving manually the price for both Vaults.
             let mut my_pool = HashMap::new();
             my_pool.insert(my_a_bucket.resource_address(), 2.into());
             my_pool.insert(my_b_bucket.resource_address(), Decimal::from("0.5"));
 
-            // Instantiate a Hello component, populating its vault with our supply of 1000 HelloToken
-            // Create vault and put Bucket inside. Can't not use a Bucket later in code!
-            Self {
-                // sample_vault: Vault::with_bucket(my_bucket)
+// // TODO
+// let mut tickets = Vec::new();
+// tickets.push((
+//                 NonFungibleId::random(),
+//                 Ticket { row, column },
+//             ));
+
+    //         let ticket_bucket = ResourceBuilder::new_non_fungible(NonNonFungibleIdType::UUID)
+    // .metadata("name", "Ticket")
+    // .initial_supply(100); // tickets
+
+    let ticket_bucket: Bucket = ResourceBuilder::new_fungible()
+    .divisibility(DIVISIBILITY_MAXIMUM)
+    .metadata("symbol", "XRD-OCI")
+    .metadata("name", "LP")
+    .metadata("amount", "1")
+    .initial_supply(100);
+
+
+
+            let mut component = Self {
                 a_vault : Vault::with_bucket(my_a_bucket),
                 b_vault : Vault::with_bucket(my_b_bucket),
                 xrd_vault : Vault::new(RADIX_TOKEN),
                 fee,
-                pools : my_pool
+                pools : my_pool,
+
+                lp_NFTs : Vault::with_bucket(ticket_bucket)
             }
-            .instantiate()
-            .globalize()
+            .instantiate();
+
+            // Create the admin badges
+            let admin_badge: Bucket = ResourceBuilder::new_fungible()
+            .divisibility(DIVISIBILITY_NONE)
+            .metadata("name", "Ocipaws Admin Badge")
+            .initial_supply(1);
+
+
+            // Define the access rules for this blueprint.
+            let access_rules = AccessRules::new()
+            .method("withdraw", rule!(require(admin_badge.resource_address())), AccessRule::DenyAll)
+            .default(rule!(allow_all), AccessRule::DenyAll);
+
+            component.add_access_check(access_rules);
+
+            let component = component.globalize();
+
+            (component, admin_badge)
         }
 
-        // This is a method, because it needs a reference to self.  Methods can only be called on components
+        // //TODO
+        // // Create NFT for each LP.
+        // #[#[scrypto(NonFungibleData)]]
+        // pub struct Ticket {
+        //     pub row: u32,
+        //     pub column: u32,
+        // }
+
+
         pub fn paws(&mut self, mut swap : Bucket, received_address : ResourceAddress) -> (Bucket, Bucket) {
 
-            // info!("My balance is: {} HelloToken. Now giving away a token!", self.sample_vault.amount());
             info!("My balance is: {} TokenA. Now swapping a token!", self.a_vault.amount());
             info!("My balance is: {} TokenB. Now swapping a token!", self.b_vault.amount());
-            // If the semi-colon is omitted on the last line, the last value seen is automatically returned
-            // In this case, a bucket containing 1 HelloToken is returned
-            // Sample_vault will handle error if not enough HelloToken.
-            // self.sample_vault.take(1)
 
             //assert_ne!(swap.resource_address(), self.xrd_vault.resource_address(),"Need XRD!");
 
@@ -96,5 +111,25 @@ blueprint! {
             }
 
         }
+
+        pub fn withdraw(&mut self) -> Bucket {
+            // This method can only be called if the caller presents an admin badge
+            self.xrd_vault.take_all()
+        }
+
+//         // TODO
+//         pub fn buy_ticket_by_id(&mut self, id: u128, mut payment: Bucket) -> (Bucket, Bucket) {
+//     // Take our price out of the payment bucket
+//     self.collected_xrd.put(payment.take(self.ticket_price));
+
+//     // Take the specific ticket
+//     let ticket = self
+//         .available_tickets
+//         .take_non_fungible(&NonFungibleId::UUID(id));
+
+//     // Return the ticket and change
+//     (ticket, payment)
+// }
+
     }
 }

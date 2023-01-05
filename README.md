@@ -1,23 +1,32 @@
 Ociswap ($OCI)
  
 
-1.	Scrypto
-Basics	
-Basic terms	
-Decimals (PreciseDecimal)	
-Enums	
-Hello example	
+Table des matières
+1.	Scrypto	2
+Basics	2
+Basic terms	2
+Decimals (PreciseDecimal)	3
+Enums	3
+Hello example	4
 Code review	4
-Code and commands	
-Cross-blueprint calls	
-Access Control	5
-2.	Concentrated liquidity	
-OCI’s brother	
-Active liquidity	
-Flexible fees	
-NFT Liquidity tokens	
-Other projects	
-Concepts to check	
+Code and commands	4
+Cross-blueprint calls	5
+Access Control	6
+Code structure	7
+Concentrated liquidity	7
+OCI’s brother	7
+Active liquidity	7
+Flexible fees	8
+NFT Liquidity tokens	8
+Other projects	8
+Trader Joe (Liquidity Book)	9
+Liquidity Book vs Uniswap V3	10
+Bins	10
+Liquidity Tokens	12
+Liquidity Tracking	12
+Individual swap	13
+Tick and Bins	15
+Concepts to check	16
 
 
 1.	Scrypto
@@ -84,13 +93,15 @@ pub enum Color {
 Hello example
 
 impl Hello {
-
+	// Instantiate to be a component.
         pub fn instantiate_hello() -> ComponentAddress {
-            
+            // Bucket to hold tokens.
             let my_bucket: Bucket = ResourceBuilder::new_fungible()
                 .metadata("name", "HelloToken")
                 .metadata("symbol", "HT")
                 .initial_supply(1000);
+
+// Create vault and put Bucket inside. Can't not use a Bucket later in code!
 
             Self {
                 sample_vault: Vault::with_bucket(my_bucket)
@@ -153,6 +164,8 @@ export pawscomponent=component_sim1qtnynf94nlcrpstrc079dz6249jrqfaaxsl3l6agx0rqv
 
 resim call-method $pawscomponent paws "10,resource_sim1qzkcyv5dwq3r6kawy6pxpvcythx8rh8ntum6ws62p95sqjjpwr" "1,resource_sim1qzkcyv5dwq3r6kawy6pxpvcythx8rh8ntum6ws62p95sqjjpwr"
 
+ 
+
 resim show $pawscomponent 
 
 Cross-blueprint calls
@@ -200,7 +213,13 @@ ResourceBuilder::new_non_fungible(NonFungibleIdType::U64)
   .restrict_deposit(AccessRule::DenyAll, AccessRule::DenyAll)
   .no_initial_supply();
 
-2.	Concentrated liquidity
+
+Code structure
+
+LP : createPool : sanity check different tokens, order tokens, wrong address check, tickspacing, deploy LP. getPool (token 1, token 2, fee, tickspacing, deployed pool)
+recipient ticklower tickupper amount
+swap flash collectProtocol
+Concentrated liquidity
  
 
 In this part we’ll understand together what’s concentrated liquidity.
@@ -211,7 +230,15 @@ Even gas fees are said to be almost 30% cheaper.
 
 It’s money working harder by giving rules. Same amount but more liquidity.
 
+Some math:
+https://www.youtube.com/watch?v=_asFkMz4zhw&ab_channel=SmartContractProgrammer
+
+
 OCI’s brother
+
+Active management component: Constantly adjust price ranges to meet active price ranges in order to continue earning trading fees.
+
+Opportunity: Liquidity management systems that can automatically adjust to LP price ranges.
 
 Auto managing protocols : The idea is to find the best strategy allocating the liquidity. Like moving liquidity range as the price moves. Limit risks (hedging)
 Key : How much of that capital is actually allocated to right part of the market.
@@ -243,8 +270,128 @@ Balancer (8 assets)
 Check liquidity book (Trader Joe)
 When volatility high have higher fees to overcome impermanent loss.
 Pay more the volatility to have lower slippage.
+Sphere Finance
 
+ 
+
+https://uniswapv3.flipsidecrypto.com/
 defi-lab.xyz/uniswapv3simulator
+
+ 
+
+https://uniswap.org/blog/uniswap-v3#concentrated-liquidity
+
+
+Trader Joe (Liquidity Book)
+
+Fungible NFT: non fungible withdraw entire position!! Vs only one share of position => more efficient liquidity management.
+Surge fees: on top of base fees (volatility) : mitigate permanent loss
++ Products on top of liquidity book.
+X * y = k vs constant sum formula (inside bin price constant, V3 price change in ID)
+Capture volatility (can manage parameters max so swaps occur) vs base fee
+Stake lp ! More returns.
+
+ 
+(liquidity in bins, each reserves and price (constant so if swaps in a bin price stays constant))
+Amount less reserve => in one bin
+Amount bigger reserve => occur in multiple bins and price increase each time you use new bin.
+Active bin fixes price.
+Receive fungible token for each bin
+
+
+
+Liquidity Book vs Uniswap V3
+Both Liquidity Book and Uniswap V3 are concentrated liquidity AMMs with some subtle differences:
+•	Price ranges are discretized into bins instead of ticks
+•	Bin steps (or tick sizes) can be more than 1 basis point
+•	Bins use constant sum invariant instead of constant product
+•	Liquidity is aggregated vertically instead of horizontally
+•	Liquidity positions are fungible
+•	Liquidity positions are not restricted to uniform distribution across its price range; they can be distributed in any shape desired
+•	Swap fees have fixed + variable pricing, which allows the AMM to charge more fees when market experiences high volatility.
+Bins
+To allow concentrated liquidity, the price curve is discretized into bins, which is similar to the tick concept in Uniswap V3. The main difference however, is that LB uses the constant sum price formula instead of the constant product formula.
+What this means is that each bin represents a single price point and the difference between two consecutive bins is the bin step.
+Take for example USDC/USDT again. If the current price is $1 and the bin step is 1 basis point (i.e. 0.0001 or 0.01%), then the next consecutive bins up are 1 * 1.0001 = \$1.00011∗1.0001=$1.0001, 1.0001 * 1.0001 = \$1.000200011.0001∗1.0001=$1.00020001, etc. Astute mathematicians will notice that this is the geometric sequence 1.0001^n.
+In addition to using a different pricing invariant, bin steps are not restricted to 1 basis point and is a parameter set by the pool creator. Because of this, there can be multiple markets of the same pair but varying only in their bin step. Put differently, given asset XX, asset YY and bin step s, each market is uniquely identified by its tuple (X, Y, s).
+Liquidity in each bin is guided by the constant sum price invariant, P \cdot x + y = LP⋅x+y=L, where xx is the quantity of asset XX, yy is the quantity of asset YY, LL is the amount of liquidity in the bin and PP is the price defined by P = \frac{\Delta y}{\Delta x}P=ΔxΔy. This is more easily visualised by the graph below:
+ 
+
+Taking the smallest possible value of s which is 1 basis point, how many bins there could possibly be, which comes to [(1+s)2−23,(1+s)223).
+
+Liquidity Tokens
+LB introduces a new token standard, LBToken, as the receipt token for liquidity positions.
+LBToken tracks the amount of liquidity added to each bin for each user in a given pair. For all intensive purposes, it is almost the same as an ERC-1155 token, but without the functions and variables that are related to NFTs. This makes LBToken fungible, which allows vaults/farms to be easily built on top.
+Liquidity Tracking
+To track liquidity, we use a three level trie in which each node is a 256 bit array represented by a uint256. The bottom level, depth 2, contains 256^3 = 16,777,2162563=16,777,216 slots, which contains exact the maximum possible number of bins, 2^{24}224.
+When a bin has liquidity, its slot will contain a 1, otherwise it contains a 0. If it contains a 1, then the corresponding slot in its parent will also contain a 1, and likewise, so will the corresponding slot in its grandparent.
+Since we always know which bin is the active bin, using a tree structure allows us to find the next bin to its left or right that has liquidity quickly by tracking a path via its parent.
+ 
+Individual swap
+A swap in a liquidity book pair will cross one or many bins inside the pair. Starting from the active bin, it will consume the liquidity of the bin until reaching out the desired amount or emptying the bin. When a bin is empty, liquidity will be taken on the next closest bin, at the exchange rate defined by the bin. This bin then becomes the active bin of the pair.
+
+Unlike Joe V1, several LBPairs with the same tokens can be created, differentiated by the binStep parameter. When asking the router to do a swap, every swap step will be described using {token In, token Out, bin step}. The LBRouter contract is also compatible with Joe V1 pairs. To swap on a V1 pair, binStep must be put to zero.
+
+
+Liquidity Book strives to give traders more efficient trades, and liquidity providers enhanced efficiency, mitigation against impermanent loss, and maximum composability of their liquidity.
+Liquidity Book’s new design hopes to unlock active liquidity provisioning, without compromising the needs of key stakeholders.
+
+
+Trader Joe is not the only DEX to throw its hat into the concentrated liquidity ring, with Orca offering its own solution on Solana in March, and QuickSwap teaming up with Algebra on Polygon last month. 
+
+“There is added divergence risk (a.k.a impermanent loss) if the positions are not well managed to stay in market range,” the team said. “For less savvy users, we also plan to offer an automated vault that will help users manage their liquidity positions automatically.” 
+
+Trader Joe also told The Defiant it plans to introduce limit order functionality for Joe v2 in the near future.  
+Transactions executed on Trader Joe will be routed between both the v1 and v2 platforms to provide traders with the best pricing available moving forward.
+Instead of having one pool with unbound price ranges, Liquidity Book has multiple separate bins with different prices that can be used as building blocks for a liquidity position.” 
+
+The Liquidity Book design of Joe v2 separates liquidity pools into “price bins.” While a traditional AMM lumps all assets provided for a specific token pair into a single pool, Trader Joe aggregates distinct pools of bins containing pairs that are segregated by price into a larger market.
+
+While most AMMs host liquidity pools comprising two separate assets, only the bin corresponding to the current market price comprises both assets in a pairing on Joe v2. 
+A single asset is provided to bins above the current price, with the second asset provided to bins below the market. Once a particular bin is depleted — meaning that all of one asset has been removed from the pool by traders and only a single asset remains in the bin — the exchange will shift trading to the next bin, also adjusting the asset’s price in the process.
+Liquidity providers (LPs) deposit liquidity into discrete price bins, each bin is assigned a specific price and liquidity providers may provide liquidity to multiple bins.
+A key change is that all liquidity deposited into bins, are given fungible token receipts. By adding liquidity non-fungible token receipts, its architecture differs from existing concentrated liquidity solutions.
+LPs providing liquidity will be given fungible token receipts, thanks to the discrete bin architecture. Fungible token receipts are more composable, this opens up new possibilities for DeFi integrations with other protocols and products. The more composable the design, the bigger DeFi can grow.
+
+Individually, bins act as constant sum pools with their own liquidity reserves, as opposed to existing AMM designs that use a constant product formula. This model uses pool reserves to calculate prices, which often result in traders paying more for less tokens.
+In Liquidity Book, the price is derived from an active bin and is constant inside it. As a result, if the trade occurs using reserves from the bin being used for a transaction, the trade will execute with zero slippage.
+
+The price impact occurs when a trade requires a bin change, which happens when reserves in the currently active bin are not enough to fulfill the trade.
+
+https://joecontent.substack.com/p/introducing-liquidity-book
+https://avaxholic.com/how-does-liquidity-book-work-what-is-the-difference-with-uniswap-v3/
+
+Tick and Bins
+in Uniswap V3, concentrated Liquidity is implemented by partitioning all available pricing space with ticks. Users can select any two ticks and give liquidity in the range between them. 
+In contrast, Liquidity Book divides the price range into discrete bins. The liquidity providers then select the bins into which they want to deposit their funds.
+
+let access_rule: AccessRule = rule!(
+    require(general_admin.resource_address())
+        || require(internal_admin.resource_address())
+);
+let my_bucket: Bucket = ResourceBuilder::new_fungible()
+    .divisibility(DIVISIBILITY_MAXIMUM)
+    .metadata("name", "Regulo")
+    .metadata("symbol", "REG")
+    .metadata(
+        "stage",
+        "Stage 1 - Fixed supply, may be restricted transfer",
+    )
+    .updateable_metadata(
+        access_rule.clone(), 
+        access_rule.clone() 
+    )
+    .restrict_withdraw(
+        access_rule.clone(), 
+        access_rule.clone() 
+    )
+    .mintable(
+        access_rule.clone(), 
+        access_rule.clone() 
+    )
+    .initial_supply(100);
+
+
 
 Concepts to check
 
@@ -258,4 +405,3 @@ Price impact (slippage)
 WETH 1:1 (Radix)
 Routing: Oci to Eth (Lp: Oci-Routing), go to Radix-Eth.
 Ajustment price
-Liquid staking
