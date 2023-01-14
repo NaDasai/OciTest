@@ -531,3 +531,108 @@ When to auto-compound to liquidity postion?
 Curve v2, internal oracle which is used to automatically adjust the range where liquidity is provided rather than having users do it manually like they do on Uni V3?
 Constant sum price formula?
 More choices for fee? (Muffin: new pool)
+
+
+            // l'active bin évolue avec le prix, mais on le set à la création pour commencer à un certain id
+            // Prix : activeBin = log(price) / log(1 + binStep) + 2^23
+            // Evolution prix : p = (1+ binStep)*(activeBin - 2^23)
+            // Pas en fonction des réserves : p = Δy/ Δx
+            // range = log(priceSup - priceInf) / log(1 + binStep)
+            // LP to mint : L = p * x + y
+            // LP to get : L * reserves / totalL
+
+            //p = (1+ binStep)(activeBin - 2^23);
+
+            // the next consecutive bins up are 1 * 1.0001 = \$1.00011∗1.0001=$1.0001, 1.0001 * 1.0001
+            // (1+s)^i know i?
+            // difference entre active bin et price?
+            // activebin ratio obligé.
+            // bins crées petit à petit, chaque user a son bin?
+            // x ranges importants
+            // nombre de bins : range / binstep? ou while < (1+s)^i
+
+            // p = (1+ binStep)**(activeBin - 2**23)
+            // activeBin = log(price) / log(1 + binStep) + 2^23
+            //Le prix ne dépend pas des reserves
+            //p = Δy/ Δx
+            // activerbin certain ID?
+
+            // retirer part de bin?
+
+
+
+                        //This Decimal type represents a 256 bit fixed-scale decimal number that can have up to 18 decimal places. If you need even more precision,
+            //we provide the 512 bit PreciseDecimal type which allows up to 64 decimal places.
+            //Represents a signed, bounded fixed-point decimal, where the precision is 10^-18
+            //Use PreciseDecimal`if you want to calculate compound interest using the `powi() method as it provides way enough precision to yield to precise results.
+            //Represents a 32-byte hash digest. Currently, the only supported hash algorithm is SHA256.
+            // keys: BTreeSet<NonFungibleKey> ?
+            //use sbor::*;
+            
+            // https://github.com/radixdlt/scrypto-challenges/blob/main/1-exchanges/RaDEX/src/liquidity_pool.rs
+            
+            //https://docs.traderjoexyz.com/concepts/bin-math
+
+
+                        // // Calculate the number of craw
+            // let number_craws = 2.into().powi(128); // not quite 0 and infinity but close to it
+            
+            // let price = active_id - number_craws * craw_step;
+            
+            // for x in 1..number_craws*2 {
+            
+            //     let a_craw = Vault::new(a_tokens.resource_address());
+            //     let a_craw_address = a_craw.resource_address();
+            //     let b_craw = Vault::new(b_tokens.resource_address());
+            //     let b_craw_address = b_craw.resource_address();
+            
+            //     a_craws.insert(price, a_craw);
+            //     b_craws.insert(price, b_craw);
+                
+            //     price = price + craw_step;
+            // }
+
+            //             // chercks if price present
+            // //self.vaults.contains_key(&address);
+
+            // // gets all prices in vec
+            // //self.vaults.keys().cloned().collect::<Vec<ResourceAddress>>();
+
+            // // gets and puts
+            // //self.vaults.get_mut(&bucket.resource_address()).unwrap().put(bucket);
+
+            // //
+            // //let vault: &mut Vault = self.vaults.get_mut(&resource_address).unwrap();
+
+            // //taking directly amount
+            // //self.vaults[&bucket1.resource_address()].amount();
+
+            // // Amount per craw
+            // let b1_per_caw = bucket1.amount()/number_craws;
+            // let b2_per_caw = bucket2.amount()/number_craws;
+            
+            // let b1_price = active_id - number_craws * craw_step;
+            // let b2_price = active_id;
+
+            // // for x in 1..number_craws {
+            // //     let b1_vault = a_craws.get_mut
+            // //     craws.insert(b1_price, Vault::with_bucket(bucket1.take(b1_per_caw)));
+            // //     b1_price = b1_price + craw_step;
+
+            // //     craws.insert(b2_price, Vault::with_bucket(bucket2.take(b2_per_caw)));
+            // //     b2_price = b2_price + craw_step;
+            // // }
+
+
+
+            // // Find left and right 
+            // let (bucket1, bucket2) = if a_tokens.resource_address().to_vec() < b_tokens.resource_address().to_vec() {
+            //     (a_tokens, b_tokens)
+            //     } else {
+            //     (b_tokens, a_tokens)
+            //     };
+
+            - à l'intérieur de l'active bin tu peux pas choisir la distribution, c'est selon le ratio entre les 2 tokens
+            - ça fait des centaines de tokens si tu as de la liquidité dans une centaine de bin
+            - si tu envoies X tokens, tu recevras p*x Y tokens 
+            - Tu arrondis à l’entier inférieur (active bin)
