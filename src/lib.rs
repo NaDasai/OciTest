@@ -29,7 +29,7 @@ blueprint! {
         b_token_address : ResourceAddress,
     }
 
-    impl Ociswap {
+impl Ociswap {
         /// Creates a Ociswap component for token pair A/B and returns the component address
         /// along with the initial LP tokens.
         pub fn instantiate_pool(
@@ -126,7 +126,7 @@ pub fn add_liquidity(
             mut b_tokens: Bucket,
             price_inf: Decimal,
             price_sup: Decimal,
-        ) -> Bucket { // No remainer
+        ) -> (Bucket, Bucket) { // No remainer
 
             assert!(
                 !a_tokens.is_empty() & !b_tokens.is_empty(), 
@@ -135,11 +135,22 @@ pub fn add_liquidity(
 
             
             // Sorting the buckets and then creating the hashmap of the vaults from the sorted buckets
-            let buckets: (Bucket, Bucket) = if a_tokens.resource_address().to_vec() > b_tokens.resource_address().to_vec() {
+            // [TODO] Check borrow.
+            let mut buckets: (Bucket, Bucket) = if a_tokens.resource_address().to_vec() > b_tokens.resource_address().to_vec() {
                 (a_tokens, b_tokens)
             } else {
                 (b_tokens, a_tokens)
             };
+
+
+            let price: Decimal = self.get_price(self.active_craw);
+            //[TODO] When to calculate LP
+
+            // LP to mint
+            // L = p * x + y
+            let supply_to_mint = price * buckets.0.amount() + buckets.1.amount();
+            // You get back later: L * reserves / totalL with reserves getBin(ID)
+
    
             // [TODO] Range = (log(priceSup) - log(priceInf)) / log(1 + binStep)
             //let range = log(price_sup - price_inf) / log(dec!(1) + self.craw_step);
@@ -147,13 +158,14 @@ pub fn add_liquidity(
             // [TODO] Round down.
 
 
-            let inf_id = log(price_inf) / log(1.into() + self.craw_step) + 2.into().powi(23);
+            let mut inf_id = self.get_id(price_inf);
             // [TODO] Round down.
 
-            let b1_per_caw = buckets.0.amount()/range;
-            let b2_per_caw = buckets.1.amount()/range;
+            let b1_per_caw = buckets.0.amount()/(range/2);
+            let b2_per_caw = buckets.1.amount()/(range/2);
 
             // [TODO] Decimal to integer
+            let range = 3;
             for i in 1..range {
 
                 // Craws are created when needed.
@@ -161,44 +173,49 @@ pub fn add_liquidity(
                     // self.a_craws.insert(price, Vault::new(a_tokens.resource_address()));
                     // self.b_craws.insert(price, Vault::new(b_tokens.resource_address()));
                     if inf_id < self.active_craw {
-                        self.a_craws.insert(inf_id, Vault::with_bucket(buckets.0.take(b1_per_caw)));}
+                        self.a_craws.insert(inf_id, Vault::with_bucket(buckets.0.take(b1_per_caw)));
+                        // Create LP token for thid ID.
+                        let lp_addresss = self.create_lp_token();
+                        self.a_lp_craws.insert(inf_id, lp_addresss);
+                    }
                     else {
-                        self.b_craws.insert(inf_id, Vault::with_bucket(buckets.1.take(b2_per_caw)));}
+                        self.b_craws.insert(inf_id, Vault::with_bucket(buckets.1.take(b2_per_caw)));
+                        // Create LP token for thid ID.
+                        let lp_addresss = self.create_lp_token();
+                        self.a_lp_craws.insert(inf_id, lp_addresss);
+                    }
                 }
                 // Get Vault for that ID and add token.
                 else{
                     if inf_id < self.active_craw {
-                        self.a_craws.get_mut(&inf_id).unwrap().put(buckets.0.take(b1_per_caw));}
+                        self.a_craws.get_mut(&inf_id).unwrap().put(buckets.0.take(b1_per_caw));
+                    }
                     else {
-                        self.b_craws.get_mut(&inf_id).unwrap().put(buckets.1.take(b1_per_caw));}
+                        self.b_craws.get_mut(&inf_id).unwrap().put(buckets.1.take(b1_per_caw));
+                    }
                 }
 
                 inf_id += 1;
 
             }
 
-
-
-
-            // Calculate price (constant sum)
-            // p = (1+ binStep)*(activeBin - 2^23) (1+binstep) ^(activeId - 2**23)
-            let price: Decimal = (dec!(1) + self.craw_step)*(self.active_craw - dec!(2).powi(23));
-            
-            // LP to mint
-            // L = p * x + y
-            let supply_to_mint = price * a_tokens.amount() + b_tokens.amount();
-            // You get back later: L * reserves / totalL with reserves getBin(ID)
+            let lp_a_resource_address = self.a_lp_craws.get(&inf_id).unwrap();
+            let lp_b_resource_address = self.b_lp_craws.get(&inf_id).unwrap();
 
             // Get the resource manager of the lp tokens
-            let lp_resource_manager = borrow_resource_manager!(self.lp_resource_address);
+            let lp_a_resource_manager = borrow_resource_manager!(*lp_a_resource_address);
+            let lp_b_resource_manager = borrow_resource_manager!(*lp_b_resource_address);
 
             // Mint LP tokens according to the share the provider is contributing
-            let lp_tokens = self
+            let lp_a_tokens = self
                 .lp_mint_badge
-                .authorize(|| lp_resource_manager.mint(supply_to_mint));
+                .authorize(|| lp_a_resource_manager.mint(supply_to_mint));
+            let lp_b_tokens = self
+                .lp_mint_badge
+                .authorize(|| lp_b_resource_manager.mint(supply_to_mint));
 
             // Return the LP tokens along with any remainer
-            lp_tokens
+            (lp_a_tokens, lp_b_tokens)
             // [TODO] Token for each bin.
             // [TODO] Do we return buckets.
         }
@@ -227,9 +244,17 @@ fn get_price (&mut self, id : Decimal) -> Decimal {
         price
     }
 
-fn add_specific_liquidity (&mut self, mut a_tokens: Bucket, id : Decimal) -> Bucket {
+fn get_id (&mut self, price : Decimal) -> Decimal {
+    
+    //let id = log(price) / log(1.into() + self.craw_step) + 2.into().powi(23);
 
-        a_tokens
+    //id
+    price
+}
+
+pub fn add_specific_liquidity (&mut self, mut tokens: Bucket, id : Decimal) -> Bucket {
+
+        tokens
     }
 
     }
