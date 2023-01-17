@@ -5,7 +5,7 @@ use scrypto::prelude::*;
 blueprint! {
     struct Ociswap {
         /// The resource address of LP token.
-        lp_resource_address: ResourceAddress,
+        lp_resource_address: ResourceAddress, //[REMOVE]
         /// LP tokens mint badge.
         lp_mint_badge: Vault,
         /// The fee to apply for every swap
@@ -20,7 +20,9 @@ blueprint! {
         craw_step : Decimal,       
         /// The reserve for token A and token B
         a_craws: HashMap<Decimal, Vault>,
+        a_lp_craws: HashMap<Decimal, ResourceAddress>,
         b_craws: HashMap<Decimal, Vault>,
+        b_lp_craws: HashMap<Decimal, ResourceAddress>,
 
         // [TODO] Do we add both addresses for checks when adding liquidity.
         a_token_address : ResourceAddress,
@@ -101,6 +103,8 @@ blueprint! {
                 craw_step,
                 a_craws,
                 b_craws,
+                a_lp_craws : HashMap::new(),
+                b_lp_craws : HashMap::new(),
                 a_token_address,
                 b_token_address,
             }
@@ -156,13 +160,17 @@ pub fn add_liquidity(
                 if !self.a_craws.contains_key(&inf_id) {
                     // self.a_craws.insert(price, Vault::new(a_tokens.resource_address()));
                     // self.b_craws.insert(price, Vault::new(b_tokens.resource_address()));
-                    self.a_craws.insert(inf_id, Vault::with_bucket(buckets.0.take(b1_per_caw)));
-                    self.a_craws.insert(inf_id, Vault::with_bucket(buckets.1.take(b2_per_caw)));
+                    if inf_id < self.active_craw {
+                        self.a_craws.insert(inf_id, Vault::with_bucket(buckets.0.take(b1_per_caw)));}
+                    else {
+                        self.b_craws.insert(inf_id, Vault::with_bucket(buckets.1.take(b2_per_caw)));}
                 }
                 // Get Vault for that ID and add token.
                 else{
-                    self.a_craws.get_mut(&inf_id).unwrap().put(buckets.0.take(b1_per_caw));
-                    self.b_craws.get_mut(&inf_id).unwrap().put(buckets.1.take(b1_per_caw));
+                    if inf_id < self.active_craw {
+                        self.a_craws.get_mut(&inf_id).unwrap().put(buckets.0.take(b1_per_caw));}
+                    else {
+                        self.b_craws.get_mut(&inf_id).unwrap().put(buckets.1.take(b1_per_caw));}
                 }
 
                 inf_id += 1;
@@ -191,8 +199,38 @@ pub fn add_liquidity(
 
             // Return the LP tokens along with any remainer
             lp_tokens
+            // [TODO] Token for each bin.
             // [TODO] Do we return buckets.
         }
+
+fn create_lp_token(&mut self) -> ResourceAddress {
+
+        let lp_resource_address = ResourceBuilder::new_fungible()
+        .divisibility(DIVISIBILITY_MAXIMUM)
+        // .metadata("symbol", pair_name)
+        // .metadata("name", lp_id)
+        .mintable(rule!(require(self.lp_mint_badge.resource_address())), LOCKED)
+        .burnable(rule!(require(self.lp_mint_badge.resource_address())), LOCKED)
+        .no_initial_supply();
+
+        lp_resource_address
+    }
+
+fn get_price (&mut self, id : Decimal) -> Decimal {
+
+        let price = id;
+
+        // Calculate price (constant sum)
+        // p = (1+ binStep)*(activeBin - 2^23) (1+binstep) ^(activeId - 2**23)
+        // let price: Decimal = (dec!(1) + self.craw_step)*(self.active_craw - dec!(2).powi(23));
+
+        price
+    }
+
+fn add_specific_liquidity (&mut self, mut a_tokens: Bucket, id : Decimal) -> Bucket {
+
+        a_tokens
+    }
 
     }
 }
