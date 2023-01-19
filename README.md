@@ -636,3 +636,11 @@ More choices for fee? (Muffin: new pool)
             - ça fait des centaines de tokens si tu as de la liquidité dans une centaine de bin
             - si tu envoies X tokens, tu recevras p*x Y tokens 
             - Tu arrondis à l’entier inférieur (active bin)
+
+            // prevent from adding tokens on sides?
+            // comment update sc?
+            // withdraw (RessourceAddress, Amount)
+            // percentage = LP/totalLp -> token A? token B?
+            // remove_liquidity(bucket or vec(bucket or address)?) -> (bucket,bucket)?
+            // bimap?
+            // RessourceAddress unique?
