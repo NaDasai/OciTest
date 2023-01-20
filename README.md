@@ -644,3 +644,21 @@ More choices for fee? (Muffin: new pool)
             // remove_liquidity(bucket or vec(bucket or address)?) -> (bucket,bucket)?
             // bimap?
             // RessourceAddress unique?
+
+
+            // Is it ok to have HashMap::new() at instantiate_pool
+            // Fees in XRD or tokens
+            // Destruction of tuple without using a part, effect?
+
+            // a and b Bucket don't need to be mut?
+            // in borrow, does the address change? b1 b2
+            // Ressource unique?
+
+            // [TODO, JOE] for each craw add a totalLP? (L * reserves/ totalL)
+            // to burn LP?
+            // create_lp_token(&mut self) add name and symbol 
+
+            // JOE check funtions add liquidity, parameters? also remove
+            // JOE id of inf and add range?
+
+            // add id to lp name

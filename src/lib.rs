@@ -12,16 +12,21 @@ blueprint! {
         // [TODO] Variable fee will be added later.
         // XRD vault.
         xrd_fee: Vault,
+
         // For each craw ID a price is associated.
         // With: active_craw = log(price) / log(1 + craw_step) + 2^23
         active_craw: Decimal,
         craw_step: Decimal,
+
         // The reserve for token A and token B
-        a_craws: HashMap<Decimal, Vault>,
         // [TODO] Check crate bimap v0.6.2
+        a_craws: HashMap<Decimal, Vault>,
         a_lp_craws: HashMap<Decimal, ResourceAddress>,
+        a_lp_id: HashMap<ResourceAddress, Decimal>, // [TODO]
+
         b_craws: HashMap<Decimal, Vault>,
         b_lp_craws: HashMap<Decimal, ResourceAddress>,
+        b_lp_id: HashMap<ResourceAddress, Decimal>, // [TODO]
 
         // [TODO] Do we add both addresses for checks when adding liquidity.
         a_token_address: ResourceAddress,
@@ -67,12 +72,17 @@ blueprint! {
                 lp_badge: Vault::with_bucket(lp_badge),
                 base_fee: Decimal::from("0.003") * craw_step, // BASE_FACTOR * 30
                 xrd_fee: Vault::new(RADIX_TOKEN),
+
                 active_craw,
                 craw_step,
+
                 a_craws: HashMap::new(),
                 b_craws: HashMap::new(),
                 a_lp_craws: HashMap::new(),
                 b_lp_craws: HashMap::new(),
+                a_lp_id: HashMap::new(), // [TODO]
+                b_lp_id: HashMap::new(), // [TODO]
+
                 a_token_address,
                 b_token_address,
             }).instantiate();
@@ -101,7 +111,7 @@ blueprint! {
             // [Check] Maybe enable one of tokens amount to be 0
 
             // Sorting the buckets and then creating the Hashmap of the vaults from the sorted buckets
-            // [TODO] Check borrow.
+            // [TODO] Check borrow and address of b1 and b2.
             let mut buckets: (Bucket, Bucket) = if
                 a_tokens.resource_address().to_vec() > b_tokens.resource_address().to_vec()
             {
@@ -109,9 +119,6 @@ blueprint! {
             } else {
                 (b_tokens, a_tokens)
             };
-
-            let price: Decimal = self.get_price(self.active_craw);
-            //[TODO] When to calculate LP
 
             // LP to mint
             // L = p * x + y
@@ -121,34 +128,37 @@ blueprint! {
             // [TODO] Range = (log(priceSup) - log(priceInf)) / log(1 + binStep)
             //let range = log(price_sup - price_inf) / log(dec!(1) + self.craw_step);
             let range = price_sup - price_inf;
-            // [TODO] Round down.
+            // [TODO] Round down and integer.
             // [TODO] Put a limit to range for gas.
 
             let mut inf_id = self.get_id(price_inf);
             // [TODO] Round down.
 
+            // This case is for a normal Shape
             let b1_per_caw = buckets.0.amount() / (range / 2);
             let b2_per_caw = buckets.1.amount() / (range / 2);
 
             let mut lp_tokens: Vec<Bucket> = Vec::new();
 
-            // [TODO] Decimal to integer
-            let range = 3;
+            let range = 3; // 3 to remove
             for _ in 0..range {
                 // Craws are created when needed.
                 if !self.a_craws.contains_key(&inf_id) {
                     // self.a_craws.insert(price, Vault::new(a_tokens.resource_address()));
                     // self.b_craws.insert(price, Vault::new(b_tokens.resource_address()));
-                    let lp_addresss = self.create_lp_token();
                     if inf_id <= self.active_craw {
                         self.a_craws.insert(inf_id, Vault::with_bucket(buckets.0.take(b1_per_caw)));
                         // Create LP token for thid ID.
+                        let lp_addresss = self.create_lp_token();
                         self.a_lp_craws.insert(inf_id, lp_addresss);
+                        self.a_lp_id.insert(lp_addresss, inf_id); // Will be used for remove
                     }
                     if inf_id >= self.active_craw {
                         self.b_craws.insert(inf_id, Vault::with_bucket(buckets.1.take(b2_per_caw)));
                         // Create LP token for thid ID.
-                        self.a_lp_craws.insert(inf_id, lp_addresss);
+                        let lp_addresss = self.create_lp_token();
+                        self.b_lp_craws.insert(inf_id, lp_addresss);
+                        self.b_lp_id.insert(lp_addresss, inf_id); // Will be used for remove
                     }
                 } else {
                     // Get Vault for that ID and add token.
@@ -163,6 +173,7 @@ blueprint! {
                 // Get the resource manager of the lp tokens
                 // Mint LP tokens according to the share the provider is contributing
                 if inf_id <= self.active_craw {
+                    let price: Decimal = self.get_price(self.active_craw);
                     let lp_a_resource_address = self.a_lp_craws.get(&inf_id).unwrap();
                     let lp_a_resource_manager = borrow_resource_manager!(*lp_a_resource_address);
                     let lp_a_tokens = self.lp_badge.authorize(||
@@ -182,9 +193,8 @@ blueprint! {
                 inf_id += 1;
             }
 
-            // Return the LP tokens
+            // Return the LP tokens, each Bucket of Vec<Bucket> will be added to the account
             lp_tokens
-            // [TODO] Do we return Vec<Bucket>.
         }
 
         /// Removes liquidity from this pool.
