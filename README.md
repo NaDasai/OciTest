@@ -662,3 +662,21 @@ More choices for fee? (Muffin: new pool)
             // JOE id of inf and add range?
 
             // add id to lp name
+
+            // token X, token Y. how do we know? (left, right)
+
+            // Radix feedback?
+
+            // data structure, no duplication, name
+            // Vec parameter
+            // craw to bin
+            // NFT not token, change metadata?
+            // V2 how in JOE? binstep 0? range how big?
+            // Comment est disperssé après swap tout dans active bin?
+            // binstep 0.003 ou 30?
+            // reimplement?
+            // multi path 
+            // protocol on liquidity
+            // math function in single sided git
+            // check with team about mut a and b
+            // todo check https://pro.olympusdao.finance/ and incentives

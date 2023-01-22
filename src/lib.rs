@@ -7,25 +7,25 @@ blueprint! {
         // LP tokens mint badge.
         lp_badge: Vault,
         // The fee to apply for every swap
-        // With fee = BASE_FACTOR * craw_step
+        // With fee = BASE_FACTOR * bin_step
         base_fee: Decimal,
         // [TODO] Variable fee will be added later.
         // XRD vault.
         xrd_fee: Vault,
 
-        // For each craw ID a price is associated.
-        // With: active_craw = log(price) / log(1 + craw_step) + 2^23
-        active_craw: Decimal,
-        craw_step: Decimal,
+        // For each bin ID a price is associated.
+        // With: active_bin = log(price) / log(1 + bin_step) + 2^23
+        active_bin: Decimal,
+        bin_step: Decimal,
 
         // The reserve for token A and token B
         // [TODO] Check crate bimap v0.6.2
-        a_craws: HashMap<Decimal, Vault>,
-        a_lp_craws: HashMap<Decimal, ResourceAddress>,
+        a_bins: HashMap<Decimal, Vault>,
+        a_lp_bins: HashMap<Decimal, ResourceAddress>,
         a_lp_id: HashMap<ResourceAddress, Decimal>, // [TODO]
 
-        b_craws: HashMap<Decimal, Vault>,
-        b_lp_craws: HashMap<Decimal, ResourceAddress>,
+        b_bins: HashMap<Decimal, Vault>,
+        b_lp_bins: HashMap<Decimal, ResourceAddress>,
         b_lp_id: HashMap<ResourceAddress, Decimal>, // [TODO]
 
         // [TODO] Do we add both addresses for checks when adding liquidity.
@@ -40,11 +40,11 @@ blueprint! {
             a_token_address: ResourceAddress,
             b_token_address: ResourceAddress, // Not a Bucket
             price: Decimal,
-            craw_step: Decimal
+            bin_step: Decimal
         ) -> ComponentAddress {
             // Performing the checks to see if this liquidity pool may be created or not.
             assert!(
-                (craw_step >= Decimal::zero()) & (craw_step <= dec!("100")),
+                (bin_step >= Decimal::zero()) & (bin_step <= dec!("100")),
                 "[Pool Creation]: Fee must be between 0 and 100"
             );
             // We will add an enum for fees.
@@ -64,22 +64,22 @@ blueprint! {
                 .initial_supply(1);
 
             // [TODO] Check with Flo the log function.
-            //let active_craw = log(price) / log(1.into() + craw_step) + 2.into().powi(23);
-            let active_craw = Decimal::from(200) + price;
+            //let active_bin = log(price) / log(1.into() + bin_step) + 2.into().powi(23);
+            let active_bin = Decimal::from(200) + price;
 
             // Instantiate our Ociswap component
             let ociswap = (Self {
                 lp_badge: Vault::with_bucket(lp_badge),
-                base_fee: Decimal::from("0.003") * craw_step, // BASE_FACTOR * 30
+                base_fee: Decimal::from("0.003") * bin_step, // BASE_FACTOR * 30
                 xrd_fee: Vault::new(RADIX_TOKEN),
 
-                active_craw,
-                craw_step,
+                active_bin,
+                bin_step,
 
-                a_craws: HashMap::new(),
-                b_craws: HashMap::new(),
-                a_lp_craws: HashMap::new(),
-                b_lp_craws: HashMap::new(),
+                a_bins: HashMap::new(),
+                b_bins: HashMap::new(),
+                a_lp_bins: HashMap::new(),
+                b_lp_bins: HashMap::new(),
                 a_lp_id: HashMap::new(), // [TODO]
                 b_lp_id: HashMap::new(), // [TODO]
 
@@ -126,7 +126,7 @@ blueprint! {
             // You get back later: L * reserves / totalL with reserves getBin(ID)
 
             // [TODO] Range = (log(priceSup) - log(priceInf)) / log(1 + binStep)
-            //let range = log(price_sup - price_inf) / log(dec!(1) + self.craw_step);
+            //let range = log(price_sup - price_inf) / log(dec!(1) + self.bin_step);
             let range = price_sup - price_inf;
             // [TODO] Round down and integer.
             // [TODO] Put a limit to range for gas.
@@ -142,47 +142,47 @@ blueprint! {
 
             let range = 3; // 3 to remove
             for _ in 0..range {
-                // Craws are created when needed.
-                if !self.a_craws.contains_key(&inf_id) {
-                    // self.a_craws.insert(price, Vault::new(a_tokens.resource_address()));
-                    // self.b_craws.insert(price, Vault::new(b_tokens.resource_address()));
-                    if inf_id <= self.active_craw {
-                        self.a_craws.insert(inf_id, Vault::with_bucket(buckets.0.take(b1_per_caw)));
+                // bins are created when needed.
+                if !self.a_bins.contains_key(&inf_id) {
+                    // self.a_bins.insert(price, Vault::new(a_tokens.resource_address()));
+                    // self.b_bins.insert(price, Vault::new(b_tokens.resource_address()));
+                    if inf_id <= self.active_bin {
+                        self.a_bins.insert(inf_id, Vault::with_bucket(buckets.0.take(b1_per_caw)));
                         // Create LP token for thid ID.
                         let lp_addresss = self.create_lp_token();
-                        self.a_lp_craws.insert(inf_id, lp_addresss);
+                        self.a_lp_bins.insert(inf_id, lp_addresss);
                         self.a_lp_id.insert(lp_addresss, inf_id); // Will be used for remove
                     }
-                    if inf_id >= self.active_craw {
-                        self.b_craws.insert(inf_id, Vault::with_bucket(buckets.1.take(b2_per_caw)));
+                    if inf_id >= self.active_bin {
+                        self.b_bins.insert(inf_id, Vault::with_bucket(buckets.1.take(b2_per_caw)));
                         // Create LP token for thid ID.
                         let lp_addresss = self.create_lp_token();
-                        self.b_lp_craws.insert(inf_id, lp_addresss);
+                        self.b_lp_bins.insert(inf_id, lp_addresss);
                         self.b_lp_id.insert(lp_addresss, inf_id); // Will be used for remove
                     }
                 } else {
                     // Get Vault for that ID and add token.
-                    if inf_id <= self.active_craw {
-                        self.a_craws.get_mut(&inf_id).unwrap().put(buckets.0.take(b1_per_caw));
+                    if inf_id <= self.active_bin {
+                        self.a_bins.get_mut(&inf_id).unwrap().put(buckets.0.take(b1_per_caw));
                     }
-                    if inf_id >= self.active_craw {
-                        self.b_craws.get_mut(&inf_id).unwrap().put(buckets.1.take(b1_per_caw));
+                    if inf_id >= self.active_bin {
+                        self.b_bins.get_mut(&inf_id).unwrap().put(buckets.1.take(b1_per_caw));
                     }
                 }
 
                 // Get the resource manager of the lp tokens
                 // Mint LP tokens according to the share the provider is contributing
-                if inf_id <= self.active_craw {
-                    let price: Decimal = self.get_price(self.active_craw);
-                    let lp_a_resource_address = self.a_lp_craws.get(&inf_id).unwrap();
+                if inf_id <= self.active_bin {
+                    let price: Decimal = self.get_price(self.active_bin);
+                    let lp_a_resource_address = self.a_lp_bins.get(&inf_id).unwrap();
                     let lp_a_resource_manager = borrow_resource_manager!(*lp_a_resource_address);
                     let lp_a_tokens = self.lp_badge.authorize(||
                         lp_a_resource_manager.mint(price * b1_per_caw)
                     );
                     lp_tokens.push(lp_a_tokens);
                 }
-                if inf_id >= self.active_craw {
-                    let lp_b_resource_address = self.b_lp_craws.get(&inf_id).unwrap();
+                if inf_id >= self.active_bin {
+                    let lp_b_resource_address = self.b_lp_bins.get(&inf_id).unwrap();
                     let lp_b_resource_manager = borrow_resource_manager!(*lp_b_resource_address);
                     let lp_b_tokens = self.lp_badge.authorize(||
                         lp_b_resource_manager.mint(b2_per_caw)
@@ -207,15 +207,15 @@ blueprint! {
             let lp_tokens_address = lp_tokens.resource_address();
             // [Check] HashMap : .get_many_mut(
             // [TODO] Also check with b.
-            let id: Decimal = *self.a_lp_craws
+            let id: Decimal = *self.a_lp_bins
                 .iter()
                 .find_map(|(key, &val)| if val == lp_tokens_address { Some(key) } else { None })
                 .unwrap();
 
-            let craw = self.a_craws.get_mut(&id).unwrap();
+            let bin = self.a_bins.get_mut(&id).unwrap();
 
             // Return the withdrawn tokens
-            (craw.take(1), craw.take(1))
+            (bin.take(1), bin.take(1))
         }
 
         // Swaps token A for B, or vice versa.
@@ -226,7 +226,7 @@ blueprint! {
             self.xrd_fee.take(fee_amount)
         }
 
-        // Creates an LP token for a craw
+        // Creates an LP token for a bin
         fn create_lp_token(&mut self) -> ResourceAddress {
             let lp_resource_address = ResourceBuilder::new_fungible()
                 .divisibility(DIVISIBILITY_MAXIMUM)
@@ -245,19 +245,19 @@ blueprint! {
 
             // Calculate price (constant sum)
             // p = (1+ binStep)*(activeBin - 2^23) (1+binstep) ^(activeId - 2**23)
-            // let price: Decimal = (dec!(1) + self.craw_step)*(self.active_craw - dec!(2).powi(23));
+            // let price: Decimal = (dec!(1) + self.bin_step)*(self.active_bin - dec!(2).powi(23));
 
             price
         }
 
         // Returns the ID for a certain price
         fn get_id(&mut self, price: Decimal) -> Decimal {
-            //let id = log(price) / log(1.into() + self.craw_step) + 2.into().powi(23);
+            //let id = log(price) / log(1.into() + self.bin_step) + 2.into().powi(23);
 
             //id
             price
         }
-        // This function is to add tokens in a specific craw
+        // This function is to add tokens in a specific bin
         pub fn add_specific_liquidity(&mut self, mut tokens: Bucket, id: Decimal) -> Bucket {
             tokens.take(id)
         }
