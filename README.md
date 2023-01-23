@@ -680,3 +680,6 @@ More choices for fee? (Muffin: new pool)
             // math function in single sided git
             // check with team about mut a and b
             // todo check https://pro.olympusdao.finance/ and incentives
+
+            // #[scrypto(Debug, TypeId, Encode, Decode, Describe)]
+            // !! L -> prix du bin

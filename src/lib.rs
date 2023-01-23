@@ -2,6 +2,30 @@ use scrypto::prelude::*;
 
 //const BASE_FACTOR: Decimal = Decimal::from("0.003");
 
+#[scrypto(Debug, TypeId, Encode, Decode, Describe)]
+pub struct Bin {
+    bin_id: Decimal,
+    bin_vault: Vault,
+    bin_lp_address: ResourceAddress,
+    bin_total_lp: Decimal,
+}
+
+impl Bin {
+    pub fn new(
+        bin_id: Decimal,
+        bin_vault: Vault,
+        bin_lp_address: ResourceAddress,
+        bin_total_lp: Decimal
+    ) -> Self {
+        Self {
+            bin_id,
+            bin_vault,
+            bin_lp_address,
+            bin_total_lp,
+        }
+    }
+}
+
 blueprint! {
     struct Ociswap {
         // LP tokens mint badge.
@@ -20,12 +44,10 @@ blueprint! {
 
         // The reserve for token A and token B
         // [TODO] Check crate bimap v0.6.2
-        a_bins: HashMap<Decimal, Vault>,
-        a_lp_bins: HashMap<Decimal, ResourceAddress>,
+        a_bins: HashMap<Decimal, Bin>,
         a_lp_id: HashMap<ResourceAddress, Decimal>, // [TODO]
 
-        b_bins: HashMap<Decimal, Vault>,
-        b_lp_bins: HashMap<Decimal, ResourceAddress>,
+        b_bins: HashMap<Decimal, Bin>,
         b_lp_id: HashMap<ResourceAddress, Decimal>, // [TODO]
 
         // [TODO] Do we add both addresses for checks when adding liquidity.
@@ -78,8 +100,6 @@ blueprint! {
 
                 a_bins: HashMap::new(),
                 b_bins: HashMap::new(),
-                a_lp_bins: HashMap::new(),
-                b_lp_bins: HashMap::new(),
                 a_lp_id: HashMap::new(), // [TODO]
                 b_lp_id: HashMap::new(), // [TODO]
 
@@ -135,8 +155,8 @@ blueprint! {
             // [TODO] Round down.
 
             // This case is for a normal Shape
-            let b1_per_caw = buckets.0.amount() / (range / 2);
-            let b2_per_caw = buckets.1.amount() / (range / 2);
+            let b1_per_bin = buckets.0.amount() / (range / 2);
+            let b2_per_bin = buckets.1.amount() / (range / 2);
 
             let mut lp_tokens: Vec<Bucket> = Vec::new();
 
@@ -147,47 +167,64 @@ blueprint! {
                     // self.a_bins.insert(price, Vault::new(a_tokens.resource_address()));
                     // self.b_bins.insert(price, Vault::new(b_tokens.resource_address()));
                     if inf_id <= self.active_bin {
-                        self.a_bins.insert(inf_id, Vault::with_bucket(buckets.0.take(b1_per_caw)));
                         // Create LP token for thid ID.
                         let lp_addresss = self.create_lp_token();
-                        self.a_lp_bins.insert(inf_id, lp_addresss);
                         self.a_lp_id.insert(lp_addresss, inf_id); // Will be used for remove
+                        // Get the resource manager of the lp tokens
+                        // Mint LP tokens according to the share the provider is contributing
+                        let price: Decimal = self.get_price(self.active_bin);
+                        let my_bin = self.a_bins.get(&inf_id).unwrap();
+                        let lp_a_resource_manager = borrow_resource_manager!(my_bin.bin_lp_address);
+                        let lp_a_tokens = self.lp_badge.authorize(||
+                            lp_a_resource_manager.mint(price * b1_per_bin)
+                        );
+
+                        let new_bin = Bin::new(
+                            inf_id,
+                            Vault::with_bucket(buckets.0.take(b1_per_bin)),
+                            lp_addresss,
+                            lp_a_tokens.amount()
+                        );
+                        self.a_bins.insert(inf_id, new_bin);
+
+                        lp_tokens.push(lp_a_tokens);
                     }
                     if inf_id >= self.active_bin {
-                        self.b_bins.insert(inf_id, Vault::with_bucket(buckets.1.take(b2_per_caw)));
                         // Create LP token for thid ID.
                         let lp_addresss = self.create_lp_token();
-                        self.b_lp_bins.insert(inf_id, lp_addresss);
                         self.b_lp_id.insert(lp_addresss, inf_id); // Will be used for remove
+                        // Get the resource manager of the lp tokens
+                        // Mint LP tokens according to the share the provider is contributing
+                        let my_bin = self.b_bins.get(&inf_id).unwrap();
+                        let lp_b_resource_manager = borrow_resource_manager!(my_bin.bin_lp_address);
+                        let lp_b_tokens = self.lp_badge.authorize(||
+                            lp_b_resource_manager.mint(b2_per_bin)
+                        );
+
+                        let new_bin = Bin::new(
+                            inf_id,
+                            Vault::with_bucket(buckets.0.take(b1_per_bin)),
+                            lp_addresss,
+                            lp_b_tokens.amount()
+                        );
+                        self.b_bins.insert(inf_id, new_bin);
+
+                        lp_tokens.push(lp_b_tokens);
                     }
                 } else {
                     // Get Vault for that ID and add token.
                     if inf_id <= self.active_bin {
-                        self.a_bins.get_mut(&inf_id).unwrap().put(buckets.0.take(b1_per_caw));
+                        self.a_bins
+                            .get_mut(&inf_id)
+                            .unwrap()
+                            .bin_vault.put(buckets.0.take(b1_per_bin));
                     }
                     if inf_id >= self.active_bin {
-                        self.b_bins.get_mut(&inf_id).unwrap().put(buckets.1.take(b1_per_caw));
+                        self.b_bins
+                            .get_mut(&inf_id)
+                            .unwrap()
+                            .bin_vault.put(buckets.1.take(b1_per_bin));
                     }
-                }
-
-                // Get the resource manager of the lp tokens
-                // Mint LP tokens according to the share the provider is contributing
-                if inf_id <= self.active_bin {
-                    let price: Decimal = self.get_price(self.active_bin);
-                    let lp_a_resource_address = self.a_lp_bins.get(&inf_id).unwrap();
-                    let lp_a_resource_manager = borrow_resource_manager!(*lp_a_resource_address);
-                    let lp_a_tokens = self.lp_badge.authorize(||
-                        lp_a_resource_manager.mint(price * b1_per_caw)
-                    );
-                    lp_tokens.push(lp_a_tokens);
-                }
-                if inf_id >= self.active_bin {
-                    let lp_b_resource_address = self.b_lp_bins.get(&inf_id).unwrap();
-                    let lp_b_resource_manager = borrow_resource_manager!(*lp_b_resource_address);
-                    let lp_b_tokens = self.lp_badge.authorize(||
-                        lp_b_resource_manager.mint(b2_per_caw)
-                    );
-                    lp_tokens.push(lp_b_tokens);
                 }
 
                 inf_id += 1;
@@ -205,17 +242,26 @@ blueprint! {
             // );
 
             let lp_tokens_address = lp_tokens.resource_address();
-            // [Check] HashMap : .get_many_mut(
-            // [TODO] Also check with b.
-            let id: Decimal = *self.a_lp_bins
-                .iter()
-                .find_map(|(key, &val)| if val == lp_tokens_address { Some(key) } else { None })
-                .unwrap();
+
+            // // [Check] HashMap : .get_many_mut(
+            // // [TODO] Also check with b.
+            // let id: Decimal = *self.a_bins
+            //     .iter()
+            //     .find_map(|(key, &val)| (
+            //         if val.bin_lp_address == lp_tokens_address {
+            //             Some(key)
+            //         } else {
+            //             None
+            //         }
+            //     ))
+            //     .unwrap();
+
+            let id = self.a_lp_id.get(&lp_tokens_address).unwrap();
 
             let bin = self.a_bins.get_mut(&id).unwrap();
 
             // Return the withdrawn tokens
-            (bin.take(1), bin.take(1))
+            (bin.bin_vault.take(1), bin.bin_vault.take(1))
         }
 
         // Swaps token A for B, or vice versa.
