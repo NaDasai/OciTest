@@ -683,3 +683,7 @@ More choices for fee? (Muffin: new pool)
 
             // #[scrypto(Debug, TypeId, Encode, Decode, Describe)]
             // !! L -> prix du bin
+            //                         let my_bin = self.a_bins.get(&inf_id).unwrap();
+            //  le bin step c'est l'évolution du prix entre 2 bin successives, entre la bin n et la bin n+1, le prix aura augmenté de binStep%.
+            // lp_resource_def.total_supply()
+            // name symbol TODO

@@ -53,6 +53,8 @@ blueprint! {
         // [TODO] Do we add both addresses for checks when adding liquidity.
         a_token_address: ResourceAddress,
         b_token_address: ResourceAddress,
+
+        total_lp: Decimal,
     }
 
     impl Ociswap {
@@ -105,6 +107,7 @@ blueprint! {
 
                 a_token_address,
                 b_token_address,
+                total_lp: Decimal::zero(),
             }).instantiate();
 
             // [TODO] ociswap.add_access_check(access_rules);
@@ -169,15 +172,14 @@ blueprint! {
                     if inf_id <= self.active_bin {
                         // Create LP token for thid ID.
                         let lp_addresss = self.create_lp_token();
-                        self.a_lp_id.insert(lp_addresss, inf_id); // Will be used for remove
                         // Get the resource manager of the lp tokens
                         // Mint LP tokens according to the share the provider is contributing
-                        let price: Decimal = self.get_price(self.active_bin);
-                        let my_bin = self.a_bins.get(&inf_id).unwrap();
-                        let lp_a_resource_manager = borrow_resource_manager!(my_bin.bin_lp_address);
+                        let price_of_bin: Decimal = self.get_price(inf_id); // [Check] If it's better to calculate without ID.
+                        let lp_a_resource_manager = borrow_resource_manager!(lp_addresss);
                         let lp_a_tokens = self.lp_badge.authorize(||
-                            lp_a_resource_manager.mint(price * b1_per_bin)
+                            lp_a_resource_manager.mint(price_of_bin * b1_per_bin)
                         );
+                        self.a_lp_id.insert(lp_addresss, inf_id); // Will be used for remove
 
                         let new_bin = Bin::new(
                             inf_id,
@@ -192,38 +194,45 @@ blueprint! {
                     if inf_id >= self.active_bin {
                         // Create LP token for thid ID.
                         let lp_addresss = self.create_lp_token();
-                        self.b_lp_id.insert(lp_addresss, inf_id); // Will be used for remove
                         // Get the resource manager of the lp tokens
                         // Mint LP tokens according to the share the provider is contributing
-                        let my_bin = self.b_bins.get(&inf_id).unwrap();
+                        let lp_a_resource_manager = borrow_resource_manager!(lp_addresss);
+                        let lp_a_tokens = self.lp_badge.authorize(||
+                            lp_a_resource_manager.mint(b2_per_bin)
+                        );
+                        self.b_lp_id.insert(lp_addresss, inf_id); // Will be used for remove
+
+                        let new_bin = Bin::new(
+                            inf_id,
+                            Vault::with_bucket(buckets.1.take(b2_per_bin)),
+                            lp_addresss,
+                            lp_a_tokens.amount()
+                        );
+                        self.b_bins.insert(inf_id, new_bin);
+
+                        lp_tokens.push(lp_a_tokens);
+                    }
+                } else {
+                    // Get Vault for that ID and add token.
+                    if inf_id <= self.active_bin {
+                        let my_bin = self.a_bins.get_mut(&inf_id).unwrap();
+                        my_bin.bin_vault.put(buckets.0.take(b1_per_bin));
+                        let lp_a_resource_manager = borrow_resource_manager!(my_bin.bin_lp_address);
+                        let lp_a_tokens = self.lp_badge.authorize(||
+                            lp_a_resource_manager.mint(b2_per_bin)
+                        );
+
+                        lp_tokens.push(lp_a_tokens);
+                    }
+                    if inf_id >= self.active_bin {
+                        let my_bin = self.b_bins.get_mut(&inf_id).unwrap();
+                        my_bin.bin_vault.put(buckets.1.take(b2_per_bin));
                         let lp_b_resource_manager = borrow_resource_manager!(my_bin.bin_lp_address);
                         let lp_b_tokens = self.lp_badge.authorize(||
                             lp_b_resource_manager.mint(b2_per_bin)
                         );
 
-                        let new_bin = Bin::new(
-                            inf_id,
-                            Vault::with_bucket(buckets.0.take(b1_per_bin)),
-                            lp_addresss,
-                            lp_b_tokens.amount()
-                        );
-                        self.b_bins.insert(inf_id, new_bin);
-
                         lp_tokens.push(lp_b_tokens);
-                    }
-                } else {
-                    // Get Vault for that ID and add token.
-                    if inf_id <= self.active_bin {
-                        self.a_bins
-                            .get_mut(&inf_id)
-                            .unwrap()
-                            .bin_vault.put(buckets.0.take(b1_per_bin));
-                    }
-                    if inf_id >= self.active_bin {
-                        self.b_bins
-                            .get_mut(&inf_id)
-                            .unwrap()
-                            .bin_vault.put(buckets.1.take(b1_per_bin));
                     }
                 }
 
@@ -256,12 +265,20 @@ blueprint! {
             //     ))
             //     .unwrap();
 
-            let id = self.a_lp_id.get(&lp_tokens_address).unwrap();
+            let bin_id = self.a_lp_id.get(&lp_tokens_address).unwrap();
 
-            let bin = self.a_bins.get_mut(&id).unwrap();
+            // L * reserves / totalL
+            let my_a_bin = self.a_bins.get_mut(&bin_id).unwrap();
+            let a_amount = (lp_tokens.amount() * my_a_bin.bin_total_lp) / self.total_lp;
+            let my_b_bin = self.b_bins.get_mut(&bin_id).unwrap();
+            let b_amount = (lp_tokens.amount() * my_b_bin.bin_total_lp) / self.total_lp;
 
-            // Return the withdrawn tokens
-            (bin.bin_vault.take(1), bin.bin_vault.take(1))
+            // Burning LP tokens received
+            self.lp_badge.authorize(|| {
+                lp_tokens.burn();
+            });
+
+            (my_a_bin.bin_vault.take(a_amount), my_b_bin.bin_vault.take(b_amount))
         }
 
         // Swaps token A for B, or vice versa.
@@ -269,10 +286,39 @@ blueprint! {
             // Calculate the swap fee
             let fee_amount = input_tokens.amount() * self.base_fee;
 
-            self.xrd_fee.take(fee_amount)
+            let price_of_active_bin: Decimal = self.get_price(self.active_bin);
+
+            let output_tokens = if input_tokens.resource_address() == self.a_token_address {
+                // Calculate how much of token B we will return
+                let b_amount = price_of_active_bin * (input_tokens.amount() - fee_amount);
+
+                let my_a_bin = self.a_bins.get_mut(&self.active_bin).unwrap();
+                // Put the input tokens into our pool
+                my_a_bin.bin_vault.put(input_tokens);
+
+                let my_b_bin = self.b_bins.get_mut(&self.active_bin).unwrap();
+                // Return the tokens owed
+                my_b_bin.bin_vault.take(b_amount)
+            } else {
+                // Calculate how much of token A we will return
+                let a_amount = (input_tokens.amount() - fee_amount) / price_of_active_bin;
+
+                let my_b_bin = self.b_bins.get_mut(&self.active_bin).unwrap();
+                // Put the input tokens into our pool
+                my_b_bin.bin_vault.put(input_tokens);
+
+                let my_a_bin = self.a_bins.get_mut(&self.active_bin).unwrap();
+                // Return the tokens owed
+                my_a_bin.bin_vault.take(a_amount)
+            };
+
+            output_tokens
+            //self.xrd_fee.take(fee_amount)
         }
 
         // Creates an LP token for a bin
+        // [TODO] Add symbol and name
+        // [Check] If we can use badges
         fn create_lp_token(&mut self) -> ResourceAddress {
             let lp_resource_address = ResourceBuilder::new_fungible()
                 .divisibility(DIVISIBILITY_MAXIMUM)
