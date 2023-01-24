@@ -687,3 +687,6 @@ More choices for fee? (Muffin: new pool)
             //  le bin step c'est l'évolution du prix entre 2 bin successives, entre la bin n et la bin n+1, le prix aura augmenté de binStep%.
             // lp_resource_def.total_supply()
             // name symbol TODO
+            // 2 lp tokens?? a et b? fusion?
+            // systeme swap si amount pas assez
+            // systeme lp burn what to give back?
