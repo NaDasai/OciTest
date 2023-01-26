@@ -690,3 +690,12 @@ More choices for fee? (Muffin: new pool)
             // 2 lp tokens?? a et b? fusion?
             // systeme swap si amount pas assez
             // systeme lp burn what to give back?
+
+            // {X/Y} = L * reserve{X/Y} / totalL
+            // X = p * x * rX / p*rX = x
+            // L = p * x + y, si t'as pas de y, L/p = x
+            // X != L, X = L * rX / tL
+
+            // quand on passe à un autre bin, on recalcul le montant?
+            // [Check] "cannot borrow `*self` as mutable more than once at a time"
+            // [Check] first mutable borrow occurs here

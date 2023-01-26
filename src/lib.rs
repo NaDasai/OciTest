@@ -224,6 +224,7 @@ blueprint! {
         }
 
         /// Removes liquidity from this pool.
+        /// [TODO] Return unclaimed fees.
         pub fn remove_liquidity(&mut self, lp_tokens: Bucket) -> Bucket {
             // assert!(
             //     self.lp_resource_def == lp_tokens.resource_address(),
@@ -261,28 +262,54 @@ blueprint! {
             } // TODO
         }
 
-        // Swaps token A for B, or vice versa.
+        /// Swaps token A for B, or vice versa.
+        /// [TODO] Add slippage and belief price
         pub fn swap(&mut self, input_tokens: Bucket) -> Bucket {
-            // Calculate the swap fee
+            // Calculate the swap fee.
             let fee_amount = input_tokens.amount() * self.base_fee;
 
+            // Get the price of active bin.
             let price_of_active_bin: Decimal = self.get_price(self.active_bin);
 
             let output_tokens = if input_tokens.resource_address() == self.a_token_address {
-                // Calculate how much of token B we will return
-                let b_amount = price_of_active_bin * (input_tokens.amount() - fee_amount);
+                // Calculate how much of token B we will return.
+                let mut b_amount = price_of_active_bin * input_tokens.amount();
+                // Get B bin to get B active bin and take output B tokens
+                // [Check] Do we have the correct bin when mut.
+                let mut my_b_bin = self.b_bins.get_mut(&self.active_bin).unwrap();
 
-                let my_a_bin = self.a_bins.get_mut(&self.active_bin).unwrap();
-                // Put the input tokens into our pool
-                my_a_bin.bin_vault.put(input_tokens);
+                while my_b_bin.bin_vault.amount() > Decimal::zero() {
+                    // Check amount of B available.
+                    if b_amount <= my_b_bin.bin_vault.amount() {
+                        // Enough B in active bin.
+                        let my_a_bin = self.a_bins.get_mut(&self.active_bin).unwrap();
+                        my_a_bin.bin_vault.put(input_tokens);
+                        break;
+                    } else {
+                        // More A than B.
 
-                let my_b_bin = self.b_bins.get_mut(&self.active_bin).unwrap();
-                // Return the tokens owed
+                        // [Check] Calculate again with new price.
+                        b_amount = price_of_active_bin *
+                        (input_tokens.amount() - my_b_bin.bin_vault.amount() / price_of_active_bin);
+
+                        //self.swap(my_b_bin.bin_vault.take(my_b_bin.bin_vault.amount()));
+                        my_b_bin.bin_vault.take(my_b_bin.bin_vault.amount());
+
+                        self.active_bin = self.active_bin + 1; // [Check] Decimal + i32.
+                        my_b_bin = self.b_bins.get_mut(&self.active_bin).unwrap();
+
+                        //price_of_active_bin = self.get_price(self.active_bin);
+                        // [TODO] Calculate A amount to take.
+                    }
+                }
+                // [TODO][Check] Get amount of A and take fees from B.
                 my_b_bin.bin_vault.take(b_amount)
             } else {
-                // Calculate how much of token A we will return
+                // B to A
+                // Calculate how much of token A we will return.
                 let a_amount = (input_tokens.amount() - fee_amount) / price_of_active_bin;
 
+                // Get the B active bin.
                 let my_b_bin = self.b_bins.get_mut(&self.active_bin).unwrap();
                 // Put the input tokens into our pool
                 my_b_bin.bin_vault.put(input_tokens);
