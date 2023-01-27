@@ -269,7 +269,7 @@ blueprint! {
             let fee_amount = input_tokens.amount() * self.base_fee;
 
             // Get the price of active bin.
-            let price_of_active_bin: Decimal = self.get_price(self.active_bin);
+            let mut price_of_active_bin: Decimal = self.get_price(self.active_bin);
 
             let output_tokens = if input_tokens.resource_address() == self.a_token_address {
                 // Calculate how much of token B we will return.
@@ -296,10 +296,11 @@ blueprint! {
                         my_b_bin.bin_vault.take(my_b_bin.bin_vault.amount());
 
                         self.active_bin = self.active_bin + 1; // [Check] Decimal + i32.
-                        my_b_bin = self.b_bins.get_mut(&self.active_bin).unwrap();
 
-                        //price_of_active_bin = self.get_price(self.active_bin);
+                        price_of_active_bin = self.get_price(self.active_bin);
                         // [TODO] Calculate A amount to take.
+
+                        my_b_bin = self.b_bins.get_mut(&self.active_bin).unwrap();
                     }
                 }
                 // [TODO][Check] Get amount of A and take fees from B.
@@ -360,6 +361,11 @@ blueprint! {
         pub fn add_specific_liquidity(&mut self, mut tokens: Bucket, id: Decimal) -> Bucket {
             tokens.take(id)
         }
+
+        // pub fn get_next_bin(&mut self) -> (Bin, Bin) {
+        //     self.active_bin = self.active_bin + 1; // [Check] Decimal + i32.
+        //     (self.b_bins.get(&self.active_bin).unwrap(), self.b_bins.get(&self.active_bin).unwrap())
+        // }
     }
 }
 
