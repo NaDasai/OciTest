@@ -266,7 +266,7 @@ blueprint! {
         /// [TODO] Add slippage and belief price
         pub fn swap(&mut self, input_tokens: Bucket) -> Bucket {
             // Calculate the swap fee.
-            let fee_amount = input_tokens.amount() * self.base_fee;
+            //let fee_amount = input_tokens.amount() * self.base_fee;
 
             // Get the price of active bin.
             let mut price_of_active_bin: Decimal = self.get_price(self.active_bin);
@@ -307,16 +307,38 @@ blueprint! {
                 my_b_bin.bin_vault.take(b_amount)
             } else {
                 // B to A
-                // Calculate how much of token A we will return.
-                let a_amount = (input_tokens.amount() - fee_amount) / price_of_active_bin;
+                // Calculate how much of token B we will return.
+                let mut a_amount = input_tokens.amount() / price_of_active_bin;
+                // Get B bin to get B active bin and take output B tokens
+                // [Check] Do we have the correct bin when mut.
+                let mut my_a_bin = self.a_bins.get_mut(&self.active_bin).unwrap();
 
-                // Get the B active bin.
-                let my_b_bin = self.b_bins.get_mut(&self.active_bin).unwrap();
-                // Put the input tokens into our pool
-                my_b_bin.bin_vault.put(input_tokens);
+                while my_a_bin.bin_vault.amount() > Decimal::zero() {
+                    // Check amount of B available.
+                    if a_amount <= my_a_bin.bin_vault.amount() {
+                        // Enough B in active bin.
+                        let my_b_bin = self.b_bins.get_mut(&self.active_bin).unwrap();
+                        my_b_bin.bin_vault.put(input_tokens);
+                        break;
+                    } else {
+                        // More A than B.
 
-                let my_a_bin = self.a_bins.get_mut(&self.active_bin).unwrap();
-                // Return the tokens owed
+                        // [Check] Calculate again with new price.
+                        a_amount = price_of_active_bin *
+                        (input_tokens.amount() - my_a_bin.bin_vault.amount() / price_of_active_bin);
+
+                        //self.swap(my_b_bin.bin_vault.take(my_b_bin.bin_vault.amount()));
+                        my_a_bin.bin_vault.take(my_a_bin.bin_vault.amount());
+
+                        self.active_bin = self.active_bin + 1; // [Check] Decimal + i32.
+
+                        price_of_active_bin = self.get_price(self.active_bin);
+                        // [TODO] Calculate A amount to take.
+
+                        my_a_bin = self.a_bins.get_mut(&self.active_bin).unwrap();
+                    }
+                }
+                // [TODO][Check] Get amount of A and take fees from B.
                 my_a_bin.bin_vault.take(a_amount)
             };
 
@@ -361,11 +383,6 @@ blueprint! {
         pub fn add_specific_liquidity(&mut self, mut tokens: Bucket, id: Decimal) -> Bucket {
             tokens.take(id)
         }
-
-        // pub fn get_next_bin(&mut self) -> (Bin, Bin) {
-        //     self.active_bin = self.active_bin + 1; // [Check] Decimal + i32.
-        //     (self.b_bins.get(&self.active_bin).unwrap(), self.b_bins.get(&self.active_bin).unwrap())
-        // }
     }
 }
 

@@ -699,3 +699,6 @@ More choices for fee? (Muffin: new pool)
             // quand on passe à un autre bin, on recalcul le montant?
             // [Check] "cannot borrow `*self` as mutable more than once at a time"
             // [Check] first mutable borrow occurs here
+
+            // lp state: opened closed active
+            // token -> collected: fee/liquidity
