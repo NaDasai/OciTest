@@ -1,4 +1,8 @@
 use scrypto::prelude::*;
+// use std::ops::Neg;
+// use std::ops::Mul;
+use std::ops::Add;
+use std::ops::Div;
 
 //const BASE_FACTOR: Decimal = Decimal::from("0.003");
 
@@ -80,7 +84,8 @@ blueprint! {
 
             // [TODO] Check with Flo the log function.
             //let active_bin = log(price) / log(1.into() + bin_step) + 2.into().powi(23);
-            let active_bin = Decimal::from(200) + price;
+
+            let active_bin = price.log() / (dec!(1) + bin_step).log() + dec!(2).powi(23);
 
             // Instantiate our Ociswap component
             let ociswap = (Self {
@@ -139,8 +144,7 @@ blueprint! {
             // You get back later: L * reserves / totalL with reserves getBin(ID)
 
             // [TODO] Range = (log(priceSup) - log(priceInf)) / log(1 + binStep)
-            //let range = log(price_sup - price_inf) / log(dec!(1) + self.bin_step);
-            let range = price_sup - price_inf;
+            let range = (price_sup.log() - price_inf.log()) / (dec!(1) + self.bin_step).log();
             // [TODO] Round down and integer.
             // [TODO] Put a limit to range for gas.
 
@@ -374,10 +378,9 @@ blueprint! {
 
         // Returns the ID for a certain price
         fn get_id(&mut self, price: Decimal) -> Decimal {
-            //let id = log(price) / log(1.into() + self.bin_step) + 2.into().powi(23);
+            let id = price.log() / (dec!(1) + self.bin_step).log() + dec!(2).powi(23);
 
-            //id
-            price
+            id
         }
         // This function is to add tokens in a specific bin
         pub fn add_specific_liquidity(&mut self, mut tokens: Bucket, id: Decimal) -> Bucket {
@@ -388,3 +391,170 @@ blueprint! {
 
 // Trader Joe Docs : https://docs.traderjoexyz.com/concepts/bin-liquidty
 // Trader Joe Whitepaper : https://github.com/traderjoe-xyz/LB-Whitepaper/blob/main/Joe%20v2%20Liquidity%20Book%20Whitepaper.pdf
+
+// Tolerance for inaccuracies when calculating exp
+const EXP_TOLERANCE: i64 = 1; //Decimal::from_str().unwrap();
+const LN2: i64 = 693147180559945309;
+const LN2HI: i64 = 693147180369123816; //6.93147180369123816490e-01; /* 0x3fe62e42, 0xfee00000 */
+const LN2LO: i64 = 190821492; // 1.90821492927058770002e-10; /* 0x3dea39ef, 0x35793c76 */
+const HALF: i64 = 500000000000000000;
+const INVLN2: i64 = 1442695040888963387;
+const SQRT: i64 = 1414213562373095048;
+const DECIMAL_PLACES: i64 = 1000000000000000000;
+
+const P1: i64 = 166666666666666019; // 1.66666666666666019037e-01; /* 0x3FC55555, 0x5555553E */
+const P2: i64 = -2777777777701559; //  -2.77777777770155933842e-03; /* 0xBF66C16C, 0x16BEBD93 */
+const P3: i64 = 66137563214379; // 6.61375632143793436117e-05; /* 0x3F11566A, 0xAF25DE2C */
+const P4: i64 = -1653390220546; // -1.65339022054652515390e-06; /* 0xBEBBBD41, 0xC5D26BF1 */
+const P5: i64 = 41381367970; //4.13813679705723846039e-08; /* 0x3E663769, 0x72BEA4D0 */
+
+const LG1: i64 = 666666666666673513; // 6.666666666666735130e-01; /* 3FE55555 55555593 */
+const LG2: i64 = 399999999994094190; // 3.999999999940941908e-01; /* 3FD99999 9997FA04 */
+const LG3: i64 = 285714287436623914; // 2.857142874366239149e-01; /* 3FD24924 94229359 */
+const LG4: i64 = 222221984321497839; // 2.222219843214978396e-01; /* 3FCC71C5 1D8E78AF */
+const LG5: i64 = 181835721616180501; // 1.818357216161805012e-01; /* 3FC74664 96CB03DE */
+const LG6: i64 = 153138376992093733; // 1.531383769920937332e-01; /* 3FC39A09 D078C69F */
+const LG7: i64 = 147981986051165859; // 1.479819860511658591e-01; /* 3FC2F112 DF3E5244 */
+
+// Table representing {index}!
+const FACTORIAL: [u128; 35] = [
+    1, 1, 2, 6, 24, 120, 720, 5040, 40320, 362880, 3628800, 39916800, 479001600, 6227020800,
+    87178291200, 1307674368000, 20922789888000, 355687428096000, 6402373705728000, 121645100408832000,
+    2432902008176640000, 51090942171709440000, 1124000727777607680000, 25852016738884976640000,
+    620448401733239439360000, 15511210043330985984000000, 403291461126605635584000000, 10888869450418352160768000000,
+    304888344611713860501504000000, 8841761993739701954543616000000,
+    265252859812191058636308480000000, 8222838654177922817725562880000000,
+    263130836933693530167218012160000000, 8683317618811886495518194401280000000,
+    295232799039604140847618609643520000000,
+];
+
+pub trait MathematicalOps {
+    /// The estimated exponential function, e<sup>x</sup>. Stops calculating when it is within
+    /// tolerance of roughly `0.0000002`.
+    fn exp_factorial(&self) -> Decimal;
+
+    /// The estimated exponential function, e<sup>x</sup> using the `tolerance` provided as a hint
+    /// as to when to stop calculating. A larger tolerance will cause the number to stop calculating
+    /// sooner at the potential cost of a slightly less accurate result.
+    fn exp_with_tolerance(&self, tolerance: Decimal) -> Decimal;
+    fn exp(&self) -> Decimal;
+    fn log(&self) -> Decimal;
+    fn pow(&self, exponent: Decimal) -> Decimal;
+}
+
+impl MathematicalOps for Decimal {
+    fn exp_factorial(&self) -> Decimal {
+        self.exp_with_tolerance(Decimal(I256::from(EXP_TOLERANCE)))
+    }
+
+    fn exp(&self) -> Decimal {
+        // based on https://github.com/rust-lang/libm/blob/master/src/math/exp.rs
+        if self.is_zero() {
+            return Decimal::ONE;
+        }
+
+        let sign = if self.is_negative() { dec!(-1) } else { dec!(1) };
+        // r = x - floor(x/ln(2) +- 0.5) * ln(2)
+        // https://www.wolframalpha.com/input?i=x+-+floor%28x%2Fln%282%29+%2B+0.5%29+*+ln%282%29
+        let k_ = Decimal(I256::from(INVLN2)) * *self + sign * Decimal(I256::from(HALF));
+        let k = (k_.0 / I256::from(DECIMAL_PLACES)).to_i64().unwrap();
+
+        let hi = *self - Decimal::from(k) * Decimal(I256::from(LN2HI));
+        let lo = Decimal::from(k) * Decimal(I256::from(LN2LO));
+        let r = hi - lo;
+
+        if k > 195 {
+            panic!("Overflow");
+        }
+
+        let p1 = Decimal(I256::from(P1));
+        let p2 = Decimal(I256::from(P2));
+        let p3 = Decimal(I256::from(P3));
+        let p4 = Decimal(I256::from(P4));
+        let p5 = Decimal(I256::from(P5));
+
+        let rr = r * r;
+        let c = r - rr * (p1 + rr * (p2 + rr * (p3 + rr * (p4 + rr * p5))));
+        let result = Decimal::ONE + ((r * c) / (dec!(2) - c) - lo + hi);
+
+        // buggy alternative - check with team
+        // Decimal(Decimal::ONE.0 << I256::from(k)) * result
+        Decimal::from(2).powi(k) * result // works until e^85
+    }
+
+    fn log(&self) -> Decimal {
+        // based on https://github.com/rust-lang/libm/blob/master/src/math/log.rs
+        let mut k = 255 - (self.0 / I256::from(DECIMAL_PLACES)).leading_zeros(); // index highest integer bit
+        let mut r = *self / Decimal::from(2).powi(k.to_i64().unwrap());
+        // buggy alternative - check with team
+        // let mut r = *self / Decimal(Decimal::ONE.0 << I256::from(k));
+        if r > Decimal(I256::from(SQRT)) {
+            k = k + 1;
+            r = r / dec!(2);
+        }
+        // info!("k {} r {}", k, r);
+
+        let f = r - dec!(1);
+        let hfsq = Decimal(I256::from(HALF)) * f * f;
+        let s = f / (dec!(2) + f);
+        let z = s * s;
+        let w = z * z;
+        let t1 =
+            w *
+            (Decimal(I256::from(LG2)) +
+                w * (Decimal(I256::from(LG4)) + w * Decimal(I256::from(LG6))));
+        let t2 =
+            z *
+            (Decimal(I256::from(LG1)) +
+                w *
+                    (Decimal(I256::from(LG3)) +
+                        w * (Decimal(I256::from(LG5)) + w * Decimal(I256::from(LG7)))));
+        let res = t2 + t1;
+        let dk = Decimal::from(k);
+        s * (hfsq + res) +
+            dk * Decimal(I256::from(LN2LO)) -
+            hfsq +
+            f +
+            dk * Decimal(I256::from(LN2HI))
+    }
+
+    fn pow(&self, exponent: Decimal) -> Decimal {
+        (exponent * self.log()).exp()
+    }
+
+    fn exp_with_tolerance(&self, tolerance: Decimal) -> Decimal {
+        // based on https://docs.rs/rust_decimal/latest/src/rust_decimal/maths.rs.html
+        // with argument reduction and scaling up from https://github.com/rust-lang/libm/blob/master/src/math/exp.rs
+        if self.is_zero() {
+            return Decimal::ONE;
+        }
+        if self.is_negative() {
+            return Decimal::ONE.div(self.abs().exp_with_tolerance(tolerance));
+        }
+
+        let x = *self;
+        let ln2 = I256::from(LN2);
+        let k = (x.0 / ln2).to_i64().unwrap();
+        let r = Decimal(x.0 % ln2);
+
+        if k > 195 {
+            panic!("Overflow");
+        }
+
+        let mut term = r;
+        let mut result = r.add(Decimal::ONE);
+
+        for factorial in FACTORIAL.iter().skip(2) {
+            term = r * term;
+            let next = result + term / Decimal::from(*factorial);
+            let diff = (next - result).abs();
+            result = next;
+            if diff <= tolerance {
+                break;
+            }
+        }
+        // buggy alternative - check with team
+        // Decimal(Decimal::ONE.0 << I256::from(k))
+        Decimal::from(2).powi(k) * result // works until e^85
+    }
+}

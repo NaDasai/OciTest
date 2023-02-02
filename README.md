@@ -702,3 +702,4 @@ More choices for fee? (Muffin: new pool)
 
             // lp state: opened closed active
             // token -> collected: fee/liquidity
+            // round down decimal
