@@ -703,3 +703,15 @@ More choices for fee? (Muffin: new pool)
             // lp state: opened closed active
             // token -> collected: fee/liquidity
             // round down decimal
+
+            // args!(resourceaddress, dec!('10000000'))
+            // TODO study it through examples and trying it's methods
+            // it's really hard, you have to study them through their code
+            // to run the transaction manifest, you run it through the test runner
+            // TestRunner : when you writing transaction manifest using ManifestBuilder
+            // ManifestBuilder and TestRunner
+            // SubstateStore
+            // write a specific struct to store data through test.
+            // https://github.com/radixdlt/scrypto-challenges/blob/main/3-lending/Ground_Finance/Ground_Test/tests/lib.rs
+            // TransactionReceipt Struct 
+

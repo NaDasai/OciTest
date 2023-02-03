@@ -17,9 +17,31 @@ fn test_ociswap() {
     // Publish package
     let package_address = test_runner.compile_and_publish(this_package!());
 
+    let token_a = test_runner.create_fungible_resource(
+        dec!(100),
+        DIVISIBILITY_MAXIMUM,
+        account_component
+    );
+    let token_b = test_runner.create_fungible_resource(
+        dec!(100),
+        DIVISIBILITY_MAXIMUM,
+        account_component
+    );
+
+    // pub fn instantiate_pool(
+    //     a_token_address: ResourceAddress,
+    //     b_token_address: ResourceAddress, // Not a Bucket
+    //     price: Decimal,
+    //     bin_step: Decimal
+    // ) -> ComponentAddress;
     // Test the `instantiate_pool` function.
     let manifest = ManifestBuilder::new(&NetworkDefinition::simulator())
-        .call_function(package_address, "Ociswap", "instantiate_pool", args!())
+        .call_function(
+            package_address,
+            "Ociswap",
+            "instantiate_pool",
+            args!(token_a, token_b, dec!(200), dec!(30))
+        )
         .build();
     let receipt = test_runner.execute_manifest_ignoring_fee(
         manifest,
@@ -29,9 +51,35 @@ fn test_ociswap() {
     receipt.expect_commit_success();
     let component = receipt.expect_commit().entity_changes.new_component_addresses[0];
 
-    // Test the `free_token` method.
+    let resources = test_runner.get_component_resources(component);
+
+    for (key, value) in &resources {
+        println!("Resource {:?}: {}", key, value);
+    }
+
+    // pub fn add_liquidity(
+    //     &mut self,
+    //     a_tokens: Bucket, //mut a_tokens: Bucket,
+    //     b_tokens: Bucket, //mut b_tokens: Bucket,
+    //     price_inf: Decimal,
+    //     price_sup: Decimal
+    // ) -> Vec<Bucket>;
+    // Test the `add_liquidity` method.
     let manifest = ManifestBuilder::new(&NetworkDefinition::simulator())
-        .call_method(component, "add_liquidity", args!())
+        .take_from_worktop_by_amount(dec!(10), token_a, |continue_transaction, bucket_id_a| {
+            continue_transaction.take_from_worktop_by_amount(
+                dec!(10),
+                token_b,
+                |continue_transaction2, bucket_id_b| {
+                    continue_transaction2.call_method(
+                        component,
+                        "add_liquidity",
+                        args!(Bucket(bucket_id_a), Bucket(bucket_id_b), dec!(195), dec!(205))
+                    )
+                }
+            )
+        })
+        // Deposit the bucket that the function returned into the caller's wallet.
         .call_method(account_component, "deposit_batch", args!(Expression::entire_worktop()))
         .build();
     let receipt = test_runner.execute_manifest_ignoring_fee(
