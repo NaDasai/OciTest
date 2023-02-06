@@ -715,3 +715,6 @@ More choices for fee? (Muffin: new pool)
             // https://github.com/radixdlt/scrypto-challenges/blob/main/3-lending/Ground_Finance/Ground_Test/tests/lib.rs
             // TransactionReceipt Struct 
 
+            // consumable liquidity? (limit orders), priority
+            // limit orders: lp consumable
+            // protocol in liquidity

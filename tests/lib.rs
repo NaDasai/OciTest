@@ -51,21 +51,16 @@ fn test_ociswap() {
     receipt.expect_commit_success();
     let component = receipt.expect_commit().entity_changes.new_component_addresses[0];
 
-    let resources = test_runner.get_component_resources(component);
+    // let resources = test_runner.get_component_resources(component);
+    // for (key, value) in &resources {
+    //     println!("Resource {:?}: {}", key, value);
+    // }
 
-    for (key, value) in &resources {
-        println!("Resource {:?}: {}", key, value);
-    }
-
-    // pub fn add_liquidity(
-    //     &mut self,
-    //     a_tokens: Bucket, //mut a_tokens: Bucket,
-    //     b_tokens: Bucket, //mut b_tokens: Bucket,
-    //     price_inf: Decimal,
-    //     price_sup: Decimal
-    // ) -> Vec<Bucket>;
+    //**************************************************************************************************************************************/
     // Test the `add_liquidity` method.
     let manifest = ManifestBuilder::new(&NetworkDefinition::simulator())
+        .withdraw_from_account_by_amount(account_component, dec!(10), token_a)
+        .withdraw_from_account_by_amount(account_component, dec!(10), token_b)
         .take_from_worktop_by_amount(dec!(10), token_a, |continue_transaction, bucket_id_a| {
             continue_transaction.take_from_worktop_by_amount(
                 dec!(10),
@@ -79,7 +74,7 @@ fn test_ociswap() {
                 }
             )
         })
-        // Deposit the bucket that the function returned into the caller's wallet.
+
         .call_method(account_component, "deposit_batch", args!(Expression::entire_worktop()))
         .build();
     let receipt = test_runner.execute_manifest_ignoring_fee(
@@ -88,4 +83,7 @@ fn test_ociswap() {
     );
     println!("{:?}\n", receipt);
     receipt.expect_commit_success();
+    //**************************************************************************************************************************************/
 }
+
+// https://github.com/radixdlt/radixdlt-scrypto/blob/main/scrypto-unit/src/test_runner.rs

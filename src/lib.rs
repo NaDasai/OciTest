@@ -87,6 +87,9 @@ blueprint! {
 
             let active_bin = price.log() / (dec!(1) + bin_step).log() + dec!(2).powi(23);
 
+            info!("[instantiate_pool]: Active bin: {}", active_bin);
+            info!("[instantiate_pool]: Active bin round: {}", active_bin.0);
+
             // Instantiate our Ociswap component
             let ociswap = (Self {
                 lp_badge: Vault::with_bucket(lp_badge),
@@ -148,8 +151,13 @@ blueprint! {
             // [TODO] Round down and integer.
             // [TODO] Put a limit to range for gas.
 
+            info!("[add_liquidity]: Range: {}", range);
+
             let mut inf_id = self.get_id(price_inf);
             // [TODO] Round down.
+
+            info!("[add_liquidity]: Price inf: {}", price_inf);
+            info!("[add_liquidity]: Inf id: {}", inf_id);
 
             // This case is for a normal Shape
             let b1_per_bin = buckets.0.amount() / (range / 2);
@@ -223,6 +231,7 @@ blueprint! {
                 inf_id += 1;
             }
 
+            info!("[add_liquidity]: LP Tokens: {:?}", lp_tokens);
             // Return the LP tokens, each Bucket of Vec<Bucket> will be added to the account
             lp_tokens
         }
