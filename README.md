@@ -718,3 +718,14 @@ More choices for fee? (Muffin: new pool)
             // consumable liquidity? (limit orders), priority
             // limit orders: lp consumable
             // protocol in liquidity
+
+            // check range value
+            // round range
+            // check how many bin from inf id to active id
+
+            // log(priceSup - priceInf) / log(1 + binStep) range 2
+            // activeBin = log(price) / log(1 + binStep) + 2**23
+            // log(prix)/log(1+binstep) + 2^23
+            // !!! sens de l'active bin selon swap.
+            // Also Decimal::floor() and Decimal::ceiling() are available, method round
+            // I guess you probably need .round(x, RoundingMode::TowardsNearestAndHalfTowardsZero);? You can play around with the RoundingMode enum options either way 

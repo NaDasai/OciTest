@@ -40,7 +40,7 @@ fn test_ociswap() {
             package_address,
             "Ociswap",
             "instantiate_pool",
-            args!(token_a, token_b, dec!(200), dec!(30))
+            args!(token_a, token_b, dec!(200), dec!("0.003"))
         )
         .build();
     let receipt = test_runner.execute_manifest_ignoring_fee(
@@ -56,6 +56,7 @@ fn test_ociswap() {
     //     println!("Resource {:?}: {}", key, value);
     // }
 
+    println!("First transaction manifest: add_liquidity 1\n");
     //**************************************************************************************************************************************/
     // Test the `add_liquidity` method.
     let manifest = ManifestBuilder::new(&NetworkDefinition::simulator())
@@ -83,6 +84,36 @@ fn test_ociswap() {
     );
     println!("{:?}\n", receipt);
     receipt.expect_commit_success();
+
+    //**************************************************************************************************************************************/
+    println!("Second transaction manifest: add_liquidity 2\n");
+    //**************************************************************************************************************************************/
+    // // Test the `add_liquidity` method.
+    // let manifest = ManifestBuilder::new(&NetworkDefinition::simulator())
+    //     .withdraw_from_account_by_amount(account_component, dec!(10), token_a)
+    //     .withdraw_from_account_by_amount(account_component, dec!(10), token_b)
+    //     .take_from_worktop_by_amount(dec!(10), token_a, |continue_transaction, bucket_id_a| {
+    //         continue_transaction.take_from_worktop_by_amount(
+    //             dec!(10),
+    //             token_b,
+    //             |continue_transaction2, bucket_id_b| {
+    //                 continue_transaction2.call_method(
+    //                     component,
+    //                     "add_liquidity",
+    //                     args!(Bucket(bucket_id_a), Bucket(bucket_id_b), dec!(198), dec!(202))
+    //                 )
+    //             }
+    //         )
+    //     })
+
+    //     .call_method(account_component, "deposit_batch", args!(Expression::entire_worktop()))
+    //     .build();
+    // let receipt = test_runner.execute_manifest_ignoring_fee(
+    //     manifest,
+    //     vec![NonFungibleAddress::from_public_key(&public_key)]
+    // );
+    // println!("{:?}\n", receipt);
+    // receipt.expect_commit_success();
     //**************************************************************************************************************************************/
 }
 

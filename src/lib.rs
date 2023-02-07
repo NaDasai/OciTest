@@ -148,48 +148,84 @@ blueprint! {
 
             // [TODO] Range = (log(priceSup) - log(priceInf)) / log(1 + binStep)
             let range = (price_sup.log() - price_inf.log()) / (dec!(1) + self.bin_step).log();
+            let range2 = (price_sup - price_inf).log() / (dec!(1) + self.bin_step).log();
             // [TODO] Round down and integer.
             // [TODO] Put a limit to range for gas.
 
-            info!("[add_liquidity]: Range: {}", range);
+            debug!("[add_liquidity]: Range: {} Range2: {}", range, range2);
+            debug!(
+                "[add_liquidity]: Range round round: {}",
+                range.round(0, RoundingMode::TowardsZero)
+            );
+            debug!("[add_liquidity]: New Range: {}", range);
+            //debug!("[add_liquidity]: Range floor round: {}", Decimal::floor(&range));
 
             let mut inf_id = self.get_id(price_inf);
             // [TODO] Round down.
 
-            info!("[add_liquidity]: Price inf: {}", price_inf);
-            info!("[add_liquidity]: Inf id: {}", inf_id);
+            debug!("[add_liquidity]: Price inf: {}", price_inf);
+            debug!("[add_liquidity]: Inf id: {}", inf_id);
+
+            debug!("[add_liquidity]: Active bin: {}", self.active_bin);
+
+            let range = dec!(16);
 
             // This case is for a normal Shape
             let b1_per_bin = buckets.0.amount() / (range / 2);
             let b2_per_bin = buckets.1.amount() / (range / 2);
 
+            debug!(
+                "[add_liquidity]: buckets.0.amount(): {}, buckets.1.amount(): {}",
+                buckets.0.amount(),
+                buckets.0.amount()
+            );
+            debug!(
+                "[add_liquidity]: Amount per a bin: {}, Amount per b bin: {}",
+                b1_per_bin,
+                b2_per_bin
+            );
+
             let mut lp_tokens: Vec<Bucket> = Vec::new();
 
-            let range = 3; // 3 to remove
-            for _ in 0..range {
+            let range = 16; // 8 to remove
+            for i in 0..range + 1 {
                 // bins are created when needed.
                 if !self.a_bins.contains_key(&inf_id) {
                     // Create LP token for this ID for both a and b.
                     let lp_addresss = self.create_lp_token();
                     let lp_a_resource_manager = borrow_resource_manager!(lp_addresss);
 
-                    if inf_id <= self.active_bin {
+                    // info!("[add_liquidity]: New LP: {:?}", lp_addresss);
+
+                    if inf_id <= self.active_bin && buckets.0.amount() > Decimal::zero() {
                         let price_of_bin: Decimal = self.get_price(inf_id); // [Check] If it's better to calculate without ID.
                         let lp_a_tokens = self.lp_badge.authorize(||
                             lp_a_resource_manager.mint(price_of_bin * b1_per_bin)
                         );
                         self.a_lp_id.insert(lp_addresss, inf_id); // Will be used for remove
+                        // info!(
+                        //     "[add_liquidity]: Hashmap Address: {:?}, Id: {}",
+                        //     lp_addresss,
+                        //     inf_id
+                        // );
 
                         let new_bin = Bin::new(
                             inf_id,
                             Vault::with_bucket(buckets.0.take(b1_per_bin)),
                             lp_addresss
                         );
+
+                        info!(
+                            "[add_liquidity]: New A bin id: {} (Active bin: {})",
+                            new_bin.bin_id,
+                            self.active_bin
+                        );
+                        info!("[add_liquidity]: {} Bucket A amount: {}", i, buckets.0.amount());
                         self.a_bins.insert(inf_id, new_bin);
 
                         lp_tokens.push(lp_a_tokens);
                     }
-                    if inf_id >= self.active_bin {
+                    if inf_id >= self.active_bin && buckets.1.amount() > Decimal::zero() {
                         let lp_a_tokens = self.lp_badge.authorize(||
                             lp_a_resource_manager.mint(b2_per_bin)
                         );
@@ -200,6 +236,12 @@ blueprint! {
                             Vault::with_bucket(buckets.1.take(b2_per_bin)),
                             lp_addresss
                         );
+                        info!(
+                            "[add_liquidity]: New B bin id: {} (Active bin: {})",
+                            new_bin.bin_id,
+                            self.active_bin
+                        );
+                        info!("[add_liquidity]: {} Bucket B amount: {}", i, buckets.1.amount());
                         self.b_bins.insert(inf_id, new_bin);
 
                         lp_tokens.push(lp_a_tokens);
@@ -214,6 +256,12 @@ blueprint! {
                             lp_a_resource_manager.mint(b2_per_bin)
                         );
 
+                        info!(
+                            "[add_liquidity]: Old A bin id: {} (Active bin: {})",
+                            my_bin.bin_id,
+                            self.active_bin
+                        );
+
                         lp_tokens.push(lp_a_tokens);
                     }
                     if inf_id >= self.active_bin {
@@ -224,6 +272,12 @@ blueprint! {
                             lp_b_resource_manager.mint(b2_per_bin)
                         );
 
+                        info!(
+                            "[add_liquidity]: Old B bin id: {} (Active bin: {})",
+                            my_bin.bin_id,
+                            self.active_bin
+                        );
+
                         lp_tokens.push(lp_b_tokens);
                     }
                 }
@@ -232,6 +286,12 @@ blueprint! {
             }
 
             info!("[add_liquidity]: LP Tokens: {:?}", lp_tokens);
+            info!("[add_liquidity]: Amount bucket a end: {}", buckets.0.amount());
+            info!("[add_liquidity]: Amount bucket b end: {}", buckets.1.amount());
+
+            lp_tokens.push(buckets.0);
+            lp_tokens.push(buckets.1);
+
             // Return the LP tokens, each Bucket of Vec<Bucket> will be added to the account
             lp_tokens
         }
