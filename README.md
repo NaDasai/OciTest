@@ -729,3 +729,11 @@ More choices for fee? (Muffin: new pool)
             // !!! sens de l'active bin selon swap.
             // Also Decimal::floor() and Decimal::ceiling() are available, method round
             // I guess you probably need .round(x, RoundingMode::TowardsNearestAndHalfTowardsZero);? You can play around with the RoundingMode enum options either way 
+            // https://uniswap.org/blog/uniswap-v3-math-primer
+
+            Le calcul des prix n'est pas safe à 100%
+            getPriceFromId -> c'est ok
+            getIdFromPrice -> pas safe
+            Le log est pas assez précis: calcul de l'id offchain (etrouver avec 1 ou 2 ids de trop / pas assez)
+            prix assez grand mais pas trop ok sinon mauvais arrondis pow et log (edges cases)
+            // tests getIdFromPrice(getPriceFromId(id)) , same ID?

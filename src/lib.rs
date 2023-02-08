@@ -85,7 +85,9 @@ blueprint! {
             // [TODO] Check with Flo the log function.
             //let active_bin = log(price) / log(1.into() + bin_step) + 2.into().powi(23);
 
-            let active_bin = price.log() / (dec!(1) + bin_step).log() + dec!(2).powi(23);
+            let mut active_bin = price.log() / (dec!(1) + bin_step).log() + dec!(2).powi(23);
+
+            active_bin = Decimal::floor(&active_bin);
 
             info!("[instantiate_pool]: Active bin: {}", active_bin);
             info!("[instantiate_pool]: Active bin round: {}", active_bin.0);
@@ -148,34 +150,29 @@ blueprint! {
 
             // [TODO] Range = (log(priceSup) - log(priceInf)) / log(1 + binStep)
             let range = (price_sup.log() - price_inf.log()) / (dec!(1) + self.bin_step).log();
-            let range2 = (price_sup - price_inf).log() / (dec!(1) + self.bin_step).log();
-            // [TODO] Round down and integer.
             // [TODO] Put a limit to range for gas.
 
-            debug!("[add_liquidity]: Range: {} Range2: {}", range, range2);
-            debug!(
-                "[add_liquidity]: Range round round: {}",
-                range.round(0, RoundingMode::TowardsZero)
-            );
-            debug!("[add_liquidity]: New Range: {}", range);
+            debug!("[add_liquidity]: Range: {}", range);
             //debug!("[add_liquidity]: Range floor round: {}", Decimal::floor(&range));
 
             let mut inf_id = self.get_id(price_inf);
-            // [TODO] Round down.
+            let mut sup_id = self.get_id(price_sup);
 
-            debug!("[add_liquidity]: Price inf: {}", price_inf);
-            debug!("[add_liquidity]: Inf id: {}", inf_id);
+            inf_id = Decimal::floor(&inf_id);
+            sup_id = Decimal::floor(&sup_id);
+            debug!("[add_liquidity]: Round Inf id: {}", inf_id);
+            debug!("[add_liquidity]: Round Sup id: {}", sup_id);
 
             debug!("[add_liquidity]: Active bin: {}", self.active_bin);
 
             let range = dec!(16);
 
             // This case is for a normal Shape
-            let b1_per_bin = buckets.0.amount() / (range / 2);
-            let b2_per_bin = buckets.1.amount() / (range / 2);
+            let b1_per_bin = buckets.0.amount() / (self.active_bin - inf_id);
+            let b2_per_bin = buckets.1.amount() / (sup_id - self.active_bin);
 
             debug!(
-                "[add_liquidity]: buckets.0.amount(): {}, buckets.1.amount(): {}",
+                "[add_liquidity]: Bucket A amount: {}, Bucket B amount: {}",
                 buckets.0.amount(),
                 buckets.0.amount()
             );
@@ -187,8 +184,12 @@ blueprint! {
 
             let mut lp_tokens: Vec<Bucket> = Vec::new();
 
-            let range = 16; // 8 to remove
-            for i in 0..range + 1 {
+            //let range = 16; // 8 to remove
+            //let range = range.to_string().parse::<i64>().unwrap();
+            let range: i64 = range.round(0, RoundingMode::TowardsZero).to_string().parse().unwrap();
+            debug!("[add_liquidity]: i64 Range: {}", range);
+
+            while inf_id <= sup_id {
                 // bins are created when needed.
                 if !self.a_bins.contains_key(&inf_id) {
                     // Create LP token for this ID for both a and b.
@@ -220,7 +221,7 @@ blueprint! {
                             new_bin.bin_id,
                             self.active_bin
                         );
-                        info!("[add_liquidity]: {} Bucket A amount: {}", i, buckets.0.amount());
+                        info!("[add_liquidity]: Bucket A amount left: {}", buckets.0.amount());
                         self.a_bins.insert(inf_id, new_bin);
 
                         lp_tokens.push(lp_a_tokens);
@@ -241,7 +242,7 @@ blueprint! {
                             new_bin.bin_id,
                             self.active_bin
                         );
-                        info!("[add_liquidity]: {} Bucket B amount: {}", i, buckets.1.amount());
+                        info!("[add_liquidity]: Bucket B amount left: {}", buckets.1.amount());
                         self.b_bins.insert(inf_id, new_bin);
 
                         lp_tokens.push(lp_a_tokens);
@@ -291,6 +292,8 @@ blueprint! {
 
             lp_tokens.push(buckets.0);
             lp_tokens.push(buckets.1);
+
+            info!("[add_liquidity]: All Buckets returned: {:?}", lp_tokens);
 
             // Return the LP tokens, each Bucket of Vec<Bucket> will be added to the account
             lp_tokens
