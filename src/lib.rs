@@ -165,11 +165,9 @@ blueprint! {
 
             debug!("[add_liquidity]: Active bin: {}", self.active_bin);
 
-            let range = dec!(16);
-
             // This case is for a normal Shape
-            let b1_per_bin = buckets.0.amount() / (self.active_bin - inf_id);
-            let b2_per_bin = buckets.1.amount() / (sup_id - self.active_bin);
+            let b1_per_bin = buckets.0.amount() / (self.active_bin - inf_id + 1); // + 1 to include active bin
+            let b2_per_bin = buckets.1.amount() / (sup_id - self.active_bin + 1);
 
             debug!(
                 "[add_liquidity]: Bucket A amount: {}, Bucket B amount: {}",
@@ -184,7 +182,6 @@ blueprint! {
 
             let mut lp_tokens: Vec<Bucket> = Vec::new();
 
-            //let range = 16; // 8 to remove
             //let range = range.to_string().parse::<i64>().unwrap();
             let range: i64 = range.round(0, RoundingMode::TowardsZero).to_string().parse().unwrap();
             debug!("[add_liquidity]: i64 Range: {}", range);
@@ -198,7 +195,7 @@ blueprint! {
 
                     // info!("[add_liquidity]: New LP: {:?}", lp_addresss);
 
-                    if inf_id <= self.active_bin && buckets.0.amount() > Decimal::zero() {
+                    if inf_id <= self.active_bin && buckets.0.amount() >= b1_per_bin {
                         let price_of_bin: Decimal = self.get_price(inf_id); // [Check] If it's better to calculate without ID.
                         let lp_a_tokens = self.lp_badge.authorize(||
                             lp_a_resource_manager.mint(price_of_bin * b1_per_bin)
@@ -224,9 +221,18 @@ blueprint! {
                         info!("[add_liquidity]: Bucket A amount left: {}", buckets.0.amount());
                         self.a_bins.insert(inf_id, new_bin);
 
+                        if !(inf_id == self.active_bin) {
+                            let other_bin = Bin::new(
+                                inf_id,
+                                Vault::new(buckets.1.resource_address()),
+                                lp_addresss
+                            );
+                            self.b_bins.insert(inf_id, other_bin);
+                        }
+
                         lp_tokens.push(lp_a_tokens);
                     }
-                    if inf_id >= self.active_bin && buckets.1.amount() > Decimal::zero() {
+                    if inf_id >= self.active_bin && buckets.1.amount() >= b2_per_bin {
                         let lp_a_tokens = self.lp_badge.authorize(||
                             lp_a_resource_manager.mint(b2_per_bin)
                         );
@@ -245,11 +251,20 @@ blueprint! {
                         info!("[add_liquidity]: Bucket B amount left: {}", buckets.1.amount());
                         self.b_bins.insert(inf_id, new_bin);
 
+                        if !(inf_id == self.active_bin) {
+                            let other_bin = Bin::new(
+                                inf_id,
+                                Vault::new(buckets.0.resource_address()),
+                                lp_addresss
+                            );
+                            self.a_bins.insert(inf_id, other_bin);
+                        }
+
                         lp_tokens.push(lp_a_tokens);
                     }
                 } else {
                     // Get Vault for that ID and add token.
-                    if inf_id <= self.active_bin {
+                    if inf_id <= self.active_bin && buckets.0.amount() >= b1_per_bin {
                         let my_bin = self.a_bins.get_mut(&inf_id).unwrap();
                         my_bin.bin_vault.put(buckets.0.take(b1_per_bin));
                         let lp_a_resource_manager = borrow_resource_manager!(my_bin.bin_lp_address);
@@ -258,14 +273,16 @@ blueprint! {
                         );
 
                         info!(
-                            "[add_liquidity]: Old A bin id: {} (Active bin: {})",
+                            "[add_liquidity]: {} Old A bin id: {} (Active bin: {})",
+                            inf_id,
                             my_bin.bin_id,
                             self.active_bin
                         );
+                        info!("[add_liquidity]: Bucket A amount left: {}", buckets.0.amount());
 
                         lp_tokens.push(lp_a_tokens);
                     }
-                    if inf_id >= self.active_bin {
+                    if inf_id >= self.active_bin && buckets.1.amount() >= b2_per_bin {
                         let my_bin = self.b_bins.get_mut(&inf_id).unwrap();
                         my_bin.bin_vault.put(buckets.1.take(b2_per_bin));
                         let lp_b_resource_manager = borrow_resource_manager!(my_bin.bin_lp_address);
@@ -274,16 +291,18 @@ blueprint! {
                         );
 
                         info!(
-                            "[add_liquidity]: Old B bin id: {} (Active bin: {})",
+                            "[add_liquidity]: {} Old B bin id: {} (Active bin: {})",
+                            inf_id,
                             my_bin.bin_id,
                             self.active_bin
                         );
+                        info!("[add_liquidity]: Bucket A amount left: {}", buckets.1.amount());
 
                         lp_tokens.push(lp_b_tokens);
                     }
                 }
 
-                inf_id += 1;
+                inf_id = inf_id + 1;
             }
 
             info!("[add_liquidity]: LP Tokens: {:?}", lp_tokens);
@@ -346,13 +365,18 @@ blueprint! {
 
             // Get the price of active bin.
             let mut price_of_active_bin: Decimal = self.get_price(self.active_bin);
+            debug!("[swap]: Active bin: {}", self.active_bin);
+            debug!("[swap]: Price of active bin: {}", price_of_active_bin);
 
             let output_tokens = if input_tokens.resource_address() == self.a_token_address {
                 // Calculate how much of token B we will return.
                 let mut b_amount = price_of_active_bin * input_tokens.amount();
+                debug!("[swap]: B amount that will be returned: {}", b_amount);
                 // Get B bin to get B active bin and take output B tokens
                 // [Check] Do we have the correct bin when mut.
                 let mut my_b_bin = self.b_bins.get_mut(&self.active_bin).unwrap();
+
+                debug!("[swap]: B amount in active bin: {}", my_b_bin.bin_vault.amount());
 
                 while my_b_bin.bin_vault.amount() > Decimal::zero() {
                     // Check amount of B available.
@@ -439,13 +463,21 @@ blueprint! {
 
         // Returns the ID of a price
         fn get_price(&mut self, id: Decimal) -> Decimal {
-            let price = id;
+            // // Calculate price (constant sum)
+            // // p = (1+ binStep)^(activeBin - 2^23)
+            // let price: Decimal = (dec!(1) + self.bin_step).powi(
+            //     (id - dec!(2).powi(23)).to_string().parse::<i64>().unwrap()
+            // );
 
-            // Calculate price (constant sum)
-            // p = (1+ binStep)*(activeBin - 2^23) (1+binstep) ^(activeId - 2**23)
-            // let price: Decimal = (dec!(1) + self.bin_step)*(self.active_bin - dec!(2).powi(23));
+            // price
 
-            price
+            // // Calculate price (constant sum)
+            // // p = (1+ binStep)^(activeBin - 2^23)
+            // let price: Decimal = (dec!(1) + self.bin_step).pow(id - dec!(2).powi(23));
+
+            // price
+
+            dec!(200)
         }
 
         // Returns the ID for a certain price

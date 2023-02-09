@@ -737,3 +737,10 @@ More choices for fee? (Muffin: new pool)
             Le log est pas assez précis: calcul de l'id offchain (etrouver avec 1 ou 2 ids de trop / pas assez)
             prix assez grand mais pas trop ok sinon mauvais arrondis pow et log (edges cases)
             // tests getIdFromPrice(getPriceFromId(id)) , same ID?
+
+            // Transaction Status: COMMITTED FAILURE: ModuleError(CostingError(FeeReserveError(LimitExceeded)))
+            // args!(Bucket(bucket_id_a), Bucket(bucket_id_b), dec!(198), dec!(210))
+
+            // getPriceFromId(id)
+            // Tu n'auras jamais le prix exact
+            // Ce sera toujours un prix à environ binStep% près
