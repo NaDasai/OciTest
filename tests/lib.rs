@@ -18,12 +18,12 @@ fn test_ociswap() {
     let package_address = test_runner.compile_and_publish(this_package!());
 
     let token_a = test_runner.create_fungible_resource(
-        dec!(100),
+        dec!(1000),
         DIVISIBILITY_MAXIMUM,
         account_component
     );
     let token_b = test_runner.create_fungible_resource(
-        dec!(100),
+        dec!(1000),
         DIVISIBILITY_MAXIMUM,
         account_component
     );
@@ -40,7 +40,7 @@ fn test_ociswap() {
             package_address,
             "Ociswap",
             "instantiate_pool",
-            args!(token_a, token_b, dec!(200), dec!("0.003"))
+            args!(token_a, token_b, dec!(20), dec!("0.003"))
         )
         .build();
     let receipt = test_runner.execute_manifest_ignoring_fee(
@@ -60,17 +60,17 @@ fn test_ociswap() {
     //**************************************************************************************************************************************/
     // Test the `add_liquidity` method.
     let manifest = ManifestBuilder::new(&NetworkDefinition::simulator())
-        .withdraw_from_account_by_amount(account_component, dec!(10), token_a)
-        .withdraw_from_account_by_amount(account_component, dec!(10), token_b)
-        .take_from_worktop_by_amount(dec!(10), token_a, |continue_transaction, bucket_id_a| {
+        .withdraw_from_account_by_amount(account_component, dec!(500), token_a)
+        .withdraw_from_account_by_amount(account_component, dec!(500), token_b)
+        .take_from_worktop_by_amount(dec!(500), token_a, |continue_transaction, bucket_id_a| {
             continue_transaction.take_from_worktop_by_amount(
-                dec!(10),
+                dec!(500),
                 token_b,
                 |continue_transaction2, bucket_id_b| {
                     continue_transaction2.call_method(
                         component,
                         "add_liquidity",
-                        args!(Bucket(bucket_id_a), Bucket(bucket_id_b), dec!(195), dec!(205))
+                        args!(Bucket(bucket_id_a), Bucket(bucket_id_b), dec!("19.5"), dec!("20.5"))
                     )
                 }
             )
@@ -90,17 +90,17 @@ fn test_ociswap() {
     //**************************************************************************************************************************************/
     // Test the `add_liquidity` method.
     let manifest = ManifestBuilder::new(&NetworkDefinition::simulator())
-        .withdraw_from_account_by_amount(account_component, dec!(10), token_a)
-        .withdraw_from_account_by_amount(account_component, dec!(10), token_b)
-        .take_from_worktop_by_amount(dec!(10), token_a, |continue_transaction, bucket_id_a| {
+        .withdraw_from_account_by_amount(account_component, dec!(100), token_a)
+        .withdraw_from_account_by_amount(account_component, dec!(100), token_b)
+        .take_from_worktop_by_amount(dec!(100), token_a, |continue_transaction, bucket_id_a| {
             continue_transaction.take_from_worktop_by_amount(
-                dec!(10),
+                dec!(100),
                 token_b,
                 |continue_transaction2, bucket_id_b| {
                     continue_transaction2.call_method(
                         component,
                         "add_liquidity",
-                        args!(Bucket(bucket_id_a), Bucket(bucket_id_b), dec!(198), dec!(207))
+                        args!(Bucket(bucket_id_a), Bucket(bucket_id_b), dec!("19.8"), dec!("20.7"))
                     )
                 }
             )
@@ -117,22 +117,22 @@ fn test_ociswap() {
     //**************************************************************************************************************************************/
 
     //**************************************************************************************************************************************/
-    // println!("Third transaction manifest: Swap\n");
-    // //**************************************************************************************************************************************/
-    // // Test the `swap` method.
-    // let manifest = ManifestBuilder::new(&NetworkDefinition::simulator())
-    //     .withdraw_from_account_by_amount(account_component, dec!(10), token_a)
-    //     .take_from_worktop_by_amount(dec!(1), token_a, |continue_transaction, bucket_id_a| {
-    //         continue_transaction.call_method(component, "swap", args!(Bucket(bucket_id_a)))
-    //     })
-    //     .call_method(account_component, "deposit_batch", args!(Expression::entire_worktop()))
-    //     .build();
-    // let receipt = test_runner.execute_manifest_ignoring_fee(
-    //     manifest,
-    //     vec![NonFungibleAddress::from_public_key(&public_key)]
-    // );
-    // println!("{:?}\n", receipt);
-    // receipt.expect_commit_success();
+    println!("Third transaction manifest: Swap\n");
+    //**************************************************************************************************************************************/
+    // Test the `swap` method.
+    let manifest = ManifestBuilder::new(&NetworkDefinition::simulator())
+        .withdraw_from_account_by_amount(account_component, dec!(10), token_a)
+        .take_from_worktop_by_amount(dec!(2), token_a, |continue_transaction, bucket_id_a| {
+            continue_transaction.call_method(component, "swap", args!(Bucket(bucket_id_a)))
+        })
+        .call_method(account_component, "deposit_batch", args!(Expression::entire_worktop()))
+        .build();
+    let receipt = test_runner.execute_manifest_ignoring_fee(
+        manifest,
+        vec![NonFungibleAddress::from_public_key(&public_key)]
+    );
+    println!("{:?}\n", receipt);
+    receipt.expect_commit_success();
     //**************************************************************************************************************************************/
 }
 

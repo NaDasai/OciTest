@@ -296,7 +296,7 @@ blueprint! {
                             my_bin.bin_id,
                             self.active_bin
                         );
-                        info!("[add_liquidity]: Bucket A amount left: {}", buckets.1.amount());
+                        info!("[add_liquidity]: Bucket B amount left: {}", buckets.1.amount());
 
                         lp_tokens.push(lp_b_tokens);
                     }
@@ -376,7 +376,12 @@ blueprint! {
                 // [Check] Do we have the correct bin when mut.
                 let mut my_b_bin = self.b_bins.get_mut(&self.active_bin).unwrap();
 
-                debug!("[swap]: B amount in active bin: {}", my_b_bin.bin_vault.amount());
+                info!(
+                    "[swap]: A amount in active bin: {}",
+                    self.a_bins.get_mut(&self.active_bin).unwrap().bin_vault.amount()
+                );
+
+                info!("[swap]: B amount in active bin: {}", my_b_bin.bin_vault.amount());
 
                 while my_b_bin.bin_vault.amount() > Decimal::zero() {
                     // Check amount of B available.
@@ -442,6 +447,15 @@ blueprint! {
                 my_a_bin.bin_vault.take(a_amount)
             };
 
+            info!(
+                "[swap]: A amount in active bin after Swap: {}",
+                self.a_bins.get_mut(&self.active_bin).unwrap().bin_vault.amount()
+            );
+            info!(
+                "[swap]: B amount in active bin after Swap: {}",
+                self.b_bins.get_mut(&self.active_bin).unwrap().bin_vault.amount()
+            );
+
             output_tokens
             //self.xrd_fee.take(fee_amount)
         }
@@ -477,7 +491,9 @@ blueprint! {
 
             // price
 
-            dec!(200)
+            //[Remove]
+            //println!("ID: {}", id);
+            dec!(20)
         }
 
         // Returns the ID for a certain price
