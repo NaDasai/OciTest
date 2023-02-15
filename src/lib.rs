@@ -359,7 +359,7 @@ blueprint! {
 
         /// Swaps token A for B, or vice versa.
         /// [TODO] Add slippage and belief price
-        pub fn swap(&mut self, input_tokens: Bucket) -> Bucket {
+        pub fn swap(&mut self, mut input_tokens: Bucket) -> Bucket {
             // Calculate the swap fee.
             //let fee_amount = input_tokens.amount() * self.base_fee;
 
@@ -376,18 +376,31 @@ blueprint! {
                 // [Check] Do we have the correct bin when mut.
                 let mut my_b_bin = self.b_bins.get_mut(&self.active_bin).unwrap();
 
-                info!(
-                    "[swap]: A amount in active bin: {}",
-                    self.a_bins.get_mut(&self.active_bin).unwrap().bin_vault.amount()
+                debug!(
+                    "[swap]: A amount in active bin: {}, ID: {}",
+                    self.a_bins.get_mut(&self.active_bin).unwrap().bin_vault.amount(),
+                    self.a_bins.get_mut(&self.active_bin).unwrap().bin_id
                 );
 
-                info!("[swap]: B amount in active bin: {}", my_b_bin.bin_vault.amount());
+                debug!(
+                    "[swap]: B amount in active bin: {}, ID: {}",
+                    my_b_bin.bin_vault.amount(),
+                    my_b_bin.bin_id
+                );
 
                 while my_b_bin.bin_vault.amount() > Decimal::zero() {
                     // Check amount of B available.
                     if b_amount <= my_b_bin.bin_vault.amount() {
                         // Enough B in active bin.
                         let my_a_bin = self.a_bins.get_mut(&self.active_bin).unwrap();
+
+                        info!(
+                            "[swap]: {} A amount Swapped to {} B and ended.",
+                            input_tokens.amount(),
+                            b_amount
+                        );
+
+                        // Put the input A into respective A bin
                         my_a_bin.bin_vault.put(input_tokens);
                         break;
                     } else {
@@ -397,8 +410,34 @@ blueprint! {
                         b_amount = price_of_active_bin *
                         (input_tokens.amount() - my_b_bin.bin_vault.amount() / price_of_active_bin);
 
+                        info!(
+                            "[swap]: {} A amount Swapped to {} B and going to next bin.",
+                            my_b_bin.bin_vault.amount() / price_of_active_bin,
+                            my_b_bin.bin_vault.amount()
+                        );
+
                         //self.swap(my_b_bin.bin_vault.take(my_b_bin.bin_vault.amount()));
+                        // Taking amount of B in the bin.
                         my_b_bin.bin_vault.take(my_b_bin.bin_vault.amount());
+
+                        let my_a_bin = self.a_bins.get_mut(&self.active_bin).unwrap();
+                        info!(
+                            "[swap]: {} A Vault amount before take part.",
+                            my_a_bin.bin_vault.amount()
+                        );
+                        my_a_bin.bin_vault.put(
+                            input_tokens.take_internal(
+                                my_b_bin.bin_vault.amount() / price_of_active_bin
+                            )
+                        );
+                        info!(
+                            "[swap]: {} A Vault amount after take part.",
+                            my_a_bin.bin_vault.amount()
+                        );
+                        info!(
+                            "[swap]: {} Input tokens left after taking a part.",
+                            input_tokens.amount()
+                        );
 
                         self.active_bin = self.active_bin + 1; // [Check] Decimal + i32.
 
@@ -409,9 +448,10 @@ blueprint! {
                     }
                 }
                 // [TODO][Check] Get amount of A and take fees from B.
+                // Give B amount to user.
                 my_b_bin.bin_vault.take(b_amount)
             } else {
-                // B to A
+                // B to A  <- self.b_token_address B to A
                 // Calculate how much of token B we will return.
                 let mut a_amount = input_tokens.amount() / price_of_active_bin;
                 // Get B bin to get B active bin and take output B tokens
@@ -435,7 +475,7 @@ blueprint! {
                         //self.swap(my_b_bin.bin_vault.take(my_b_bin.bin_vault.amount()));
                         my_a_bin.bin_vault.take(my_a_bin.bin_vault.amount());
 
-                        self.active_bin = self.active_bin + 1; // [Check] Decimal + i32.
+                        self.active_bin = self.active_bin - 1; // [Check] Decimal + i32.
 
                         price_of_active_bin = self.get_price(self.active_bin);
                         // [TODO] Calculate A amount to take.
@@ -448,12 +488,14 @@ blueprint! {
             };
 
             info!(
-                "[swap]: A amount in active bin after Swap: {}",
-                self.a_bins.get_mut(&self.active_bin).unwrap().bin_vault.amount()
+                "[swap]: A amount in active bin after Swap: {}, ID: {}",
+                self.a_bins.get_mut(&self.active_bin).unwrap().bin_vault.amount(),
+                self.b_bins.get_mut(&self.active_bin).unwrap().bin_id
             );
             info!(
-                "[swap]: B amount in active bin after Swap: {}",
-                self.b_bins.get_mut(&self.active_bin).unwrap().bin_vault.amount()
+                "[swap]: B amount in active bin after Swap: {}, ID: {}",
+                self.b_bins.get_mut(&self.active_bin).unwrap().bin_vault.amount(),
+                self.b_bins.get_mut(&self.active_bin).unwrap().bin_id
             );
 
             output_tokens

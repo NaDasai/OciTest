@@ -744,3 +744,18 @@ More choices for fee? (Muffin: new pool)
             // getPriceFromId(id)
             // Tu n'auras jamais le prix exact
             // Ce sera toujours un prix à environ binStep% près
+            // Ajouter -1
+            // Voir quel bucket pas renvoyé.
+            // Optimiser la double création de bins dans add.
+            // Fonction finale de add par bin par montant.
+
+            TM1 : 20 Blueprint
+            TM2 : 19.5 20 20.5
+            TM3 : 19.8 20 20.7
+            TM4 : Swap 1 a : 20 b
+
+            let k = (k_.0 / I256::from(DECIMAL_PLACES)).to_i64().unwrap();
+
+            // Check 608?? old last why new.
+
+            // [Check] Bucket in input of swap mutable.
