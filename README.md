@@ -759,3 +759,19 @@ More choices for fee? (Muffin: new pool)
             // Check 608?? old last why new.
 
             // [Check] Bucket in input of swap mutable.
+
+            // https://docs-babylon.radixdlt.com/main/getting-started-developers/first-component/updating-scrypto.html
+            // https://docs-babylon.radixdlt.com/main/scrypto/release_notes/migrating_from_0.7_to_0.8.html
+            Changes:
+            // Cargo update
+            // I256 to BnumI256
+            // initial_supply() replaced by mint_initial_supply() no_initial_supply() replaced by create_with_no_initial_supply()
+            // #[derive(ScryptoCategorize, ScryptoDecode, ScryptoEncode, LegacyDescribe)]
+            Test:
+            //let mut test_runner = TestRunner::new(true, &mut store);
+            let mut test_runner = TestRunner::builder().without_trace().build();
+            // Deleted &NetworkDefinition::simulator() + use radix_engine_interface::core::NetworkDefinition;
+            // NonFungibleAddress to NonFungibleGlobalId
+
+            //https://github.com/radixdlt/scrypto-challenges/tree/main/6-nfts-for-financial-applications/moonwork/tests
+            

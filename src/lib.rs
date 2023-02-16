@@ -6,7 +6,8 @@ use std::ops::Div;
 
 //const BASE_FACTOR: Decimal = Decimal::from("0.003");
 
-#[scrypto(Debug, TypeId, Encode, Decode, Describe)]
+//#[scrypto(Debug, TypeId, Encode, Decode, Describe)]
+#[derive(ScryptoCategorize, ScryptoDecode, ScryptoEncode, LegacyDescribe)]
 pub struct Bin {
     bin_id: Decimal,
     bin_vault: Vault,
@@ -23,7 +24,8 @@ impl Bin {
     }
 }
 
-blueprint! {
+#[blueprint]
+mod ociswap_module {
     struct Ociswap {
         // LP tokens mint badge.
         lp_badge: Vault,
@@ -80,7 +82,7 @@ blueprint! {
             let lp_badge = ResourceBuilder::new_fungible()
                 .divisibility(DIVISIBILITY_NONE)
                 .metadata("name", "LP Token Mint Auth")
-                .initial_supply(1);
+                .mint_initial_supply(1);
 
             // [TODO] Check with Flo the log function.
             //let active_bin = log(price) / log(1.into() + bin_step) + 2.into().powi(23);
@@ -407,8 +409,10 @@ blueprint! {
                         // More A than B.
 
                         // [Check] Calculate again with new price.
-                        b_amount = price_of_active_bin *
-                        (input_tokens.amount() - my_b_bin.bin_vault.amount() / price_of_active_bin);
+                        b_amount =
+                            price_of_active_bin *
+                            (input_tokens.amount() -
+                                my_b_bin.bin_vault.amount() / price_of_active_bin);
 
                         info!(
                             "[swap]: {} A amount Swapped to {} B and going to next bin.",
@@ -469,8 +473,10 @@ blueprint! {
                         // More A than B.
 
                         // [Check] Calculate again with new price.
-                        a_amount = price_of_active_bin *
-                        (input_tokens.amount() - my_a_bin.bin_vault.amount() / price_of_active_bin);
+                        a_amount =
+                            price_of_active_bin *
+                            (input_tokens.amount() -
+                                my_a_bin.bin_vault.amount() / price_of_active_bin);
 
                         //self.swap(my_b_bin.bin_vault.take(my_b_bin.bin_vault.amount()));
                         my_a_bin.bin_vault.take(my_a_bin.bin_vault.amount());
@@ -512,7 +518,7 @@ blueprint! {
                 // .metadata("name", lp_id)
                 .mintable(rule!(require(self.lp_badge.resource_address())), LOCKED)
                 .burnable(rule!(require(self.lp_badge.resource_address())), LOCKED)
-                .no_initial_supply();
+                .create_with_no_initial_supply();
 
             lp_resource_address
         }
@@ -606,7 +612,7 @@ pub trait MathematicalOps {
 
 impl MathematicalOps for Decimal {
     fn exp_factorial(&self) -> Decimal {
-        self.exp_with_tolerance(Decimal(I256::from(EXP_TOLERANCE)))
+        self.exp_with_tolerance(Decimal(BnumI256::from(EXP_TOLERANCE)))
     }
 
     fn exp(&self) -> Decimal {
@@ -618,66 +624,66 @@ impl MathematicalOps for Decimal {
         let sign = if self.is_negative() { dec!(-1) } else { dec!(1) };
         // r = x - floor(x/ln(2) +- 0.5) * ln(2)
         // https://www.wolframalpha.com/input?i=x+-+floor%28x%2Fln%282%29+%2B+0.5%29+*+ln%282%29
-        let k_ = Decimal(I256::from(INVLN2)) * *self + sign * Decimal(I256::from(HALF));
-        let k = (k_.0 / I256::from(DECIMAL_PLACES)).to_i64().unwrap();
+        let k_ = Decimal(BnumI256::from(INVLN2)) * *self + sign * Decimal(BnumI256::from(HALF));
+        let k = (k_.0 / BnumI256::from(DECIMAL_PLACES)).to_i64().unwrap();
 
-        let hi = *self - Decimal::from(k) * Decimal(I256::from(LN2HI));
-        let lo = Decimal::from(k) * Decimal(I256::from(LN2LO));
+        let hi = *self - Decimal::from(k) * Decimal(BnumI256::from(LN2HI));
+        let lo = Decimal::from(k) * Decimal(BnumI256::from(LN2LO));
         let r = hi - lo;
 
         if k > 195 {
             panic!("Overflow");
         }
 
-        let p1 = Decimal(I256::from(P1));
-        let p2 = Decimal(I256::from(P2));
-        let p3 = Decimal(I256::from(P3));
-        let p4 = Decimal(I256::from(P4));
-        let p5 = Decimal(I256::from(P5));
+        let p1 = Decimal(BnumI256::from(P1));
+        let p2 = Decimal(BnumI256::from(P2));
+        let p3 = Decimal(BnumI256::from(P3));
+        let p4 = Decimal(BnumI256::from(P4));
+        let p5 = Decimal(BnumI256::from(P5));
 
         let rr = r * r;
         let c = r - rr * (p1 + rr * (p2 + rr * (p3 + rr * (p4 + rr * p5))));
         let result = Decimal::ONE + ((r * c) / (dec!(2) - c) - lo + hi);
 
         // buggy alternative - check with team
-        // Decimal(Decimal::ONE.0 << I256::from(k)) * result
+        // Decimal(Decimal::ONE.0 << BnumI256::from(k)) * result
         Decimal::from(2).powi(k) * result // works until e^85
     }
 
     fn log(&self) -> Decimal {
         // based on https://github.com/rust-lang/libm/blob/master/src/math/log.rs
-        let mut k = 255 - (self.0 / I256::from(DECIMAL_PLACES)).leading_zeros(); // index highest integer bit
+        let mut k = 255 - (self.0 / BnumI256::from(DECIMAL_PLACES)).leading_zeros(); // index highest integer bit
         let mut r = *self / Decimal::from(2).powi(k.to_i64().unwrap());
         // buggy alternative - check with team
-        // let mut r = *self / Decimal(Decimal::ONE.0 << I256::from(k));
-        if r > Decimal(I256::from(SQRT)) {
+        // let mut r = *self / Decimal(Decimal::ONE.0 << BnumI256::from(k));
+        if r > Decimal(BnumI256::from(SQRT)) {
             k = k + 1;
             r = r / dec!(2);
         }
         // info!("k {} r {}", k, r);
 
         let f = r - dec!(1);
-        let hfsq = Decimal(I256::from(HALF)) * f * f;
+        let hfsq = Decimal(BnumI256::from(HALF)) * f * f;
         let s = f / (dec!(2) + f);
         let z = s * s;
         let w = z * z;
         let t1 =
             w *
-            (Decimal(I256::from(LG2)) +
-                w * (Decimal(I256::from(LG4)) + w * Decimal(I256::from(LG6))));
+            (Decimal(BnumI256::from(LG2)) +
+                w * (Decimal(BnumI256::from(LG4)) + w * Decimal(BnumI256::from(LG6))));
         let t2 =
             z *
-            (Decimal(I256::from(LG1)) +
+            (Decimal(BnumI256::from(LG1)) +
                 w *
-                    (Decimal(I256::from(LG3)) +
-                        w * (Decimal(I256::from(LG5)) + w * Decimal(I256::from(LG7)))));
+                    (Decimal(BnumI256::from(LG3)) +
+                        w * (Decimal(BnumI256::from(LG5)) + w * Decimal(BnumI256::from(LG7)))));
         let res = t2 + t1;
         let dk = Decimal::from(k);
         s * (hfsq + res) +
-            dk * Decimal(I256::from(LN2LO)) -
+            dk * Decimal(BnumI256::from(LN2LO)) -
             hfsq +
             f +
-            dk * Decimal(I256::from(LN2HI))
+            dk * Decimal(BnumI256::from(LN2HI))
     }
 
     fn pow(&self, exponent: Decimal) -> Decimal {
@@ -695,7 +701,7 @@ impl MathematicalOps for Decimal {
         }
 
         let x = *self;
-        let ln2 = I256::from(LN2);
+        let ln2 = BnumI256::from(LN2);
         let k = (x.0 / ln2).to_i64().unwrap();
         let r = Decimal(x.0 % ln2);
 
@@ -716,7 +722,7 @@ impl MathematicalOps for Decimal {
             }
         }
         // buggy alternative - check with team
-        // Decimal(Decimal::ONE.0 << I256::from(k))
+        // Decimal(Decimal::ONE.0 << BnumI256::from(k))
         Decimal::from(2).powi(k) * result // works until e^85
     }
 }
