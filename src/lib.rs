@@ -43,11 +43,11 @@ mod ociswap_module {
 
         // The reserve for token A and token B
         // [TODO] Check crate bimap v0.6.2
-        a_bins: HashMap<Decimal, Bin>,
-        a_lp_id: HashMap<ResourceAddress, Decimal>,
+        a_bins: KeyValueStore<Decimal, Bin>,
+        a_lp_id: KeyValueStore<ResourceAddress, Decimal>,
 
-        b_bins: HashMap<Decimal, Bin>,
-        b_lp_id: HashMap<ResourceAddress, Decimal>,
+        b_bins: KeyValueStore<Decimal, Bin>,
+        b_lp_id: KeyValueStore<ResourceAddress, Decimal>,
 
         // [Check] Do we add both addresses for checks when adding liquidity.
         a_token_address: ResourceAddress,
@@ -93,6 +93,7 @@ mod ociswap_module {
 
             info!("[instantiate_pool]: Active bin: {}", active_bin);
             info!("[instantiate_pool]: Active bin round: {}", active_bin.0);
+            debug!("[instantiate_pool]: Active bin round: {}", active_bin.0);
 
             // Instantiate our Ociswap component
             let ociswap = (Self {
@@ -103,10 +104,10 @@ mod ociswap_module {
                 active_bin,
                 bin_step,
 
-                a_bins: HashMap::new(),
-                b_bins: HashMap::new(),
-                a_lp_id: HashMap::new(),
-                b_lp_id: HashMap::new(),
+                a_bins: KeyValueStore::new(),
+                b_bins: KeyValueStore::new(),
+                a_lp_id: KeyValueStore::new(),
+                b_lp_id: KeyValueStore::new(),
 
                 a_token_address,
                 b_token_address,
@@ -129,13 +130,22 @@ mod ociswap_module {
         ) -> Vec<Bucket> {
             // No remainer
 
+            //[LP]
+            let lp_addresss = ResourceBuilder::new_fungible()
+                .divisibility(DIVISIBILITY_MAXIMUM)
+                // .metadata("symbol", pair_name)
+                // .metadata("name", lp_id)
+                .mintable(rule!(require(self.lp_badge.resource_address())), LOCKED)
+                .burnable(rule!(require(self.lp_badge.resource_address())), LOCKED)
+                .create_with_no_initial_supply();
+
             assert!(
                 !a_tokens.is_empty() & !b_tokens.is_empty(),
                 "[Pool Creation]: Can't create a pool from an empty bucket."
             );
             // [Check] Maybe enable one of tokens amount to be 0
 
-            // Sorting the buckets and then creating the Hashmap of the vaults from the sorted buckets
+            // Sorting the buckets and then creating the KeyValueStore of the vaults from the sorted buckets
             // [TODO] Check borrow and address of b1 and b2.
             let mut buckets: (Bucket, Bucket) = if
                 a_tokens.resource_address().to_vec() > b_tokens.resource_address().to_vec()
@@ -190,117 +200,120 @@ mod ociswap_module {
 
             while inf_id <= sup_id {
                 // bins are created when needed.
-                if !self.a_bins.contains_key(&inf_id) {
-                    // Create LP token for this ID for both a and b.
-                    let lp_addresss = self.create_lp_token();
-                    let lp_a_resource_manager = borrow_resource_manager!(lp_addresss);
+                match self.a_bins.get(&inf_id) {
+                    None => {
+                        // Create LP token for this ID for both a and b.
+                        //[LP] let lp_addresss = self.create_lp_token();
+                        //[LP] let lp_a_resource_manager = borrow_resource_manager!(lp_addresss);
 
-                    // info!("[add_liquidity]: New LP: {:?}", lp_addresss);
+                        // info!("[add_liquidity]: New LP: {:?}", lp_addresss);
 
-                    if inf_id <= self.active_bin && buckets.0.amount() >= b1_per_bin {
-                        let price_of_bin: Decimal = self.get_price(inf_id); // [Check] If it's better to calculate without ID.
-                        let lp_a_tokens = self.lp_badge.authorize(||
-                            lp_a_resource_manager.mint(price_of_bin * b1_per_bin)
-                        );
-                        self.a_lp_id.insert(lp_addresss, inf_id); // Will be used for remove
-                        // info!(
-                        //     "[add_liquidity]: Hashmap Address: {:?}, Id: {}",
-                        //     lp_addresss,
-                        //     inf_id
-                        // );
+                        if inf_id <= self.active_bin && buckets.0.amount() >= b1_per_bin {
+                            let price_of_bin: Decimal = self.get_price(inf_id); // [Check] If it's better to calculate without ID.
+                            //[LP]let lp_a_tokens = self.lp_badge.authorize(||
+                            //[LP]lp_a_resource_manager.mint(price_of_bin * b1_per_bin)
+                            //[LP]);
+                            //[LP] self.a_lp_id.insert(lp_addresss, inf_id); // Will be used for remove
+                            // info!(
+                            //     "[add_liquidity]: KeyValueStore Address: {:?}, Id: {}",
+                            //     lp_addresss,
+                            //     inf_id
+                            // );
 
-                        let new_bin = Bin::new(
-                            inf_id,
-                            Vault::with_bucket(buckets.0.take(b1_per_bin)),
-                            lp_addresss
-                        );
-
-                        info!(
-                            "[add_liquidity]: New A bin id: {} (Active bin: {})",
-                            new_bin.bin_id,
-                            self.active_bin
-                        );
-                        info!("[add_liquidity]: Bucket A amount left: {}", buckets.0.amount());
-                        self.a_bins.insert(inf_id, new_bin);
-
-                        if !(inf_id == self.active_bin) {
-                            let other_bin = Bin::new(
+                            let new_bin = Bin::new(
                                 inf_id,
-                                Vault::new(buckets.1.resource_address()),
+                                Vault::with_bucket(buckets.0.take(b1_per_bin)),
                                 lp_addresss
                             );
-                            self.b_bins.insert(inf_id, other_bin);
+
+                            info!(
+                                "[add_liquidity]: New A bin id: {} (Active bin: {})",
+                                new_bin.bin_id,
+                                self.active_bin
+                            );
+                            info!("[add_liquidity]: Bucket A amount left: {}", buckets.0.amount());
+                            self.a_bins.insert(inf_id, new_bin);
+
+                            if !(inf_id == self.active_bin) {
+                                let other_bin = Bin::new(
+                                    inf_id,
+                                    Vault::new(buckets.1.resource_address()),
+                                    lp_addresss
+                                );
+                                self.b_bins.insert(inf_id, other_bin);
+                            }
+
+                            //[LP]lp_tokens.push(lp_a_tokens);
                         }
+                        if inf_id >= self.active_bin && buckets.1.amount() >= b2_per_bin {
+                            //[LP]let lp_a_tokens = self.lp_badge.authorize(||
+                            //[LP] lp_a_resource_manager.mint(b2_per_bin)
+                            //[LP]);
+                            //[LP] self.b_lp_id.insert(lp_addresss, inf_id); // Will be used for remove
 
-                        lp_tokens.push(lp_a_tokens);
-                    }
-                    if inf_id >= self.active_bin && buckets.1.amount() >= b2_per_bin {
-                        let lp_a_tokens = self.lp_badge.authorize(||
-                            lp_a_resource_manager.mint(b2_per_bin)
-                        );
-                        self.b_lp_id.insert(lp_addresss, inf_id); // Will be used for remove
-
-                        let new_bin = Bin::new(
-                            inf_id,
-                            Vault::with_bucket(buckets.1.take(b2_per_bin)),
-                            lp_addresss
-                        );
-                        info!(
-                            "[add_liquidity]: New B bin id: {} (Active bin: {})",
-                            new_bin.bin_id,
-                            self.active_bin
-                        );
-                        info!("[add_liquidity]: Bucket B amount left: {}", buckets.1.amount());
-                        self.b_bins.insert(inf_id, new_bin);
-
-                        if !(inf_id == self.active_bin) {
-                            let other_bin = Bin::new(
+                            let new_bin = Bin::new(
                                 inf_id,
-                                Vault::new(buckets.0.resource_address()),
+                                Vault::with_bucket(buckets.1.take(b2_per_bin)),
                                 lp_addresss
                             );
-                            self.a_bins.insert(inf_id, other_bin);
+                            info!(
+                                "[add_liquidity]: New B bin id: {} (Active bin: {})",
+                                new_bin.bin_id,
+                                self.active_bin
+                            );
+                            info!("[add_liquidity]: Bucket B amount left: {}", buckets.1.amount());
+                            self.b_bins.insert(inf_id, new_bin);
+
+                            if !(inf_id == self.active_bin) {
+                                let other_bin = Bin::new(
+                                    inf_id,
+                                    Vault::new(buckets.0.resource_address()),
+                                    lp_addresss
+                                );
+                                self.a_bins.insert(inf_id, other_bin);
+                            }
+
+                            //[LP]lp_tokens.push(lp_a_tokens);
                         }
-
-                        lp_tokens.push(lp_a_tokens);
                     }
-                } else {
-                    // Get Vault for that ID and add token.
-                    if inf_id <= self.active_bin && buckets.0.amount() >= b1_per_bin {
-                        let my_bin = self.a_bins.get_mut(&inf_id).unwrap();
-                        my_bin.bin_vault.put(buckets.0.take(b1_per_bin));
-                        let lp_a_resource_manager = borrow_resource_manager!(my_bin.bin_lp_address);
-                        let lp_a_tokens = self.lp_badge.authorize(||
-                            lp_a_resource_manager.mint(b2_per_bin)
-                        );
+                    Some(value) => {
+                        // Get Vault for that ID and add token.
+                        if inf_id <= self.active_bin && buckets.0.amount() >= b1_per_bin {
+                            let mut my_bin = self.a_bins.get_mut(&inf_id).unwrap();
+                            my_bin.bin_vault.put(buckets.0.take(b1_per_bin));
+                            //[LP] let lp_a_resource_manager = borrow_resource_manager!(my_bin.bin_lp_address);
+                            //[LP] let lp_a_tokens = self.lp_badge.authorize(||
+                            //[LP]     lp_a_resource_manager.mint(b2_per_bin)
+                            //[LP] );
 
-                        info!(
-                            "[add_liquidity]: {} Old A bin id: {} (Active bin: {})",
-                            inf_id,
-                            my_bin.bin_id,
-                            self.active_bin
-                        );
-                        info!("[add_liquidity]: Bucket A amount left: {}", buckets.0.amount());
+                            info!(
+                                "[add_liquidity]: {} Old A bin id: {} (Active bin: {})",
+                                inf_id,
+                                my_bin.bin_id,
+                                self.active_bin
+                            );
+                            info!("[add_liquidity]: Bucket A amount left: {}", buckets.0.amount());
 
-                        lp_tokens.push(lp_a_tokens);
-                    }
-                    if inf_id >= self.active_bin && buckets.1.amount() >= b2_per_bin {
-                        let my_bin = self.b_bins.get_mut(&inf_id).unwrap();
-                        my_bin.bin_vault.put(buckets.1.take(b2_per_bin));
-                        let lp_b_resource_manager = borrow_resource_manager!(my_bin.bin_lp_address);
-                        let lp_b_tokens = self.lp_badge.authorize(||
-                            lp_b_resource_manager.mint(b2_per_bin)
-                        );
+                            //[LP] lp_tokens.push(lp_a_tokens);
+                        }
+                        if inf_id >= self.active_bin && buckets.1.amount() >= b2_per_bin {
+                            let mut my_bin = self.b_bins.get_mut(&inf_id).unwrap();
+                            my_bin.bin_vault.put(buckets.1.take(b2_per_bin));
+                            //[LP] let lp_b_resource_manager = borrow_resource_manager!(my_bin.bin_lp_address);
+                            //[LP] let lp_b_tokens = self.lp_badge.authorize(||
+                            //[LP]     lp_b_resource_manager.mint(b2_per_bin)
+                            //[LP] );
 
-                        info!(
-                            "[add_liquidity]: {} Old B bin id: {} (Active bin: {})",
-                            inf_id,
-                            my_bin.bin_id,
-                            self.active_bin
-                        );
-                        info!("[add_liquidity]: Bucket B amount left: {}", buckets.1.amount());
+                            info!(
+                                "[add_liquidity]: {} Old B bin id: {} (Active bin: {})",
+                                inf_id,
+                                my_bin.bin_id,
+                                self.active_bin
+                            );
+                            info!("[add_liquidity]: Bucket B amount left: {}", buckets.1.amount());
 
-                        lp_tokens.push(lp_b_tokens);
+                            //[LP] lp_tokens.push(lp_b_tokens);
+                        }
                     }
                 }
 
@@ -332,10 +345,10 @@ mod ociswap_module {
             let lp_resource_manager = borrow_resource_manager!(lp_tokens_address);
 
             // L * reserves / totalL
-            if self.a_lp_id.contains_key(&lp_tokens_address) {
-                let &bin_id = self.a_lp_id.get(&lp_tokens_address).unwrap(); // [Check]
-                let bin_price = self.get_price(bin_id);
-                let my_a_bin = self.a_bins.get_mut(&bin_id).unwrap();
+            if self.a_lp_id.get(&lp_tokens_address).is_some() {
+                let bin_id = self.a_lp_id.get(&lp_tokens_address).unwrap(); // [Check]
+                let bin_price = self.get_price(*bin_id);
+                let mut my_a_bin = self.a_bins.get_mut(&bin_id).unwrap();
                 let a_amount =
                     (lp_tokens.amount() * my_a_bin.bin_vault.amount()) /
                     lp_resource_manager.total_supply() /
@@ -347,7 +360,7 @@ mod ociswap_module {
                 my_a_bin.bin_vault.take(a_amount)
             } else {
                 let bin_id = self.a_lp_id.get(&lp_tokens_address).unwrap();
-                let my_b_bin = self.b_bins.get_mut(&bin_id).unwrap();
+                let mut my_b_bin = self.b_bins.get_mut(&bin_id).unwrap();
                 let b_amount =
                     (lp_tokens.amount() * my_b_bin.bin_vault.amount()) /
                     lp_resource_manager.total_supply();
@@ -394,7 +407,7 @@ mod ociswap_module {
                     // Check amount of B available.
                     if b_amount <= my_b_bin.bin_vault.amount() {
                         // Enough B in active bin.
-                        let my_a_bin = self.a_bins.get_mut(&self.active_bin).unwrap();
+                        let mut my_a_bin = self.a_bins.get_mut(&self.active_bin).unwrap();
 
                         info!(
                             "[swap]: {} A amount Swapped to {} B and ended.",
@@ -422,9 +435,10 @@ mod ociswap_module {
 
                         //self.swap(my_b_bin.bin_vault.take(my_b_bin.bin_vault.amount()));
                         // Taking amount of B in the bin.
-                        my_b_bin.bin_vault.take(my_b_bin.bin_vault.amount());
+                        let my_b_bin_amount = my_b_bin.bin_vault.amount();
+                        my_b_bin.bin_vault.take(my_b_bin_amount);
 
-                        let my_a_bin = self.a_bins.get_mut(&self.active_bin).unwrap();
+                        let mut my_a_bin = self.a_bins.get_mut(&self.active_bin).unwrap();
                         info!(
                             "[swap]: {} A Vault amount before take part.",
                             my_a_bin.bin_vault.amount()
@@ -466,7 +480,7 @@ mod ociswap_module {
                     // Check amount of B available.
                     if a_amount <= my_a_bin.bin_vault.amount() {
                         // Enough B in active bin.
-                        let my_b_bin = self.b_bins.get_mut(&self.active_bin).unwrap();
+                        let mut my_b_bin = self.b_bins.get_mut(&self.active_bin).unwrap();
                         my_b_bin.bin_vault.put(input_tokens);
                         break;
                     } else {
@@ -479,7 +493,8 @@ mod ociswap_module {
                                 my_a_bin.bin_vault.amount() / price_of_active_bin);
 
                         //self.swap(my_b_bin.bin_vault.take(my_b_bin.bin_vault.amount()));
-                        my_a_bin.bin_vault.take(my_a_bin.bin_vault.amount());
+                        let my_a_bin_amount = my_a_bin.bin_vault.amount();
+                        my_a_bin.bin_vault.take(my_a_bin_amount);
 
                         self.active_bin = self.active_bin - 1; // [Check] Decimal + i32.
 

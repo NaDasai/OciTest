@@ -774,4 +774,6 @@ More choices for fee? (Muffin: new pool)
             // NonFungibleAddress to NonFungibleGlobalId
 
             //https://github.com/radixdlt/scrypto-challenges/tree/main/6-nfts-for-financial-applications/moonwork/tests
-            
+
+            // Feedback from Radix team, secret location? what did you guys do?
+            // Check NFT and data.
