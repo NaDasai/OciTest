@@ -775,5 +775,7 @@ More choices for fee? (Muffin: new pool)
 
             //https://github.com/radixdlt/scrypto-challenges/tree/main/6-nfts-for-financial-applications/moonwork/tests
 
-            // Feedback from Radix team, secret location? what did you guys do?
             // Check NFT and data.
+
+            // soulboundtoken ? add rules. users can't transfer themself.
+            // Enjoy

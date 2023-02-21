@@ -5,6 +5,10 @@ use scrypto::prelude::*;
 use scrypto_unit::*;
 use transaction::builder::ManifestBuilder;
 
+use transaction::model::TransactionManifest;
+use radix_engine::transaction::TransactionReceipt;
+use transaction::model::TestTransaction;
+
 #[test]
 fn test_ociswap() {
     // Setup the environment
@@ -83,6 +87,7 @@ fn test_ociswap() {
         manifest,
         vec![NonFungibleGlobalId::from_public_key(&public_key)]
     );
+
     println!("{:?}\n", receipt);
     receipt.expect_commit_success();
 
@@ -135,6 +140,26 @@ fn test_ociswap() {
     println!("{:?}\n", receipt);
     receipt.expect_commit_success();
     //**************************************************************************************************************************************/
+}
+
+trait ExecuteManifestWithMaxCostUnitLimit {
+    fn execute_manifest_with_max_cost_unit_limit(
+        &mut self,
+        manifest: TransactionManifest,
+        initial_proofs: Vec<NonFungibleGlobalId>
+    ) -> TransactionReceipt;
+}
+
+impl ExecuteManifestWithMaxCostUnitLimit for TestRunner {
+    fn execute_manifest_with_max_cost_unit_limit(
+        &mut self,
+        manifest: TransactionManifest,
+        initial_proofs: Vec<NonFungibleGlobalId>
+    ) -> TransactionReceipt {
+        let transaction = TestTransaction::new(manifest, self.next_transaction_nonce(), u32::MAX);
+        let executable = transaction.get_executable(initial_proofs);
+        self.execute_transaction(executable)
+    }
 }
 
 // https://github.com/radixdlt/radixdlt-scrypto/blob/main/scrypto-unit/src/test_runner.rs

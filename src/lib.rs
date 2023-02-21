@@ -195,7 +195,7 @@ mod ociswap_module {
             let mut lp_tokens: Vec<Bucket> = Vec::new();
 
             //let range = range.to_string().parse::<i64>().unwrap();
-            let range: i64 = range.round(0, RoundingMode::TowardsZero).to_string().parse().unwrap();
+            //let range: i64 = range.round(0, RoundingMode::TowardsZero).to_string().parse().unwrap();
             debug!("[add_liquidity]: i64 Range: {}", range);
 
             while inf_id <= sup_id {
