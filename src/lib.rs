@@ -14,6 +14,11 @@ pub struct Bin {
     bin_lp_address: ResourceAddress,
 }
 
+#[derive(NonFungibleData)]
+pub struct Lp {
+    id_lp: KeyValueStore<Decimal, Decimal>,
+}
+
 impl Bin {
     pub fn new(bin_id: Decimal, bin_vault: Vault, bin_lp_address: ResourceAddress) -> Self {
         Self {
@@ -130,15 +135,6 @@ mod ociswap_module {
         ) -> Vec<Bucket> {
             // No remainer
 
-            //[LP]
-            let lp_addresss = ResourceBuilder::new_fungible()
-                .divisibility(DIVISIBILITY_MAXIMUM)
-                // .metadata("symbol", pair_name)
-                // .metadata("name", lp_id)
-                .mintable(rule!(require(self.lp_badge.resource_address())), LOCKED)
-                .burnable(rule!(require(self.lp_badge.resource_address())), LOCKED)
-                .create_with_no_initial_supply();
-
             assert!(
                 !a_tokens.is_empty() & !b_tokens.is_empty(),
                 "[Pool Creation]: Can't create a pool from an empty bucket."
@@ -203,17 +199,17 @@ mod ociswap_module {
                 match self.a_bins.get(&inf_id) {
                     None => {
                         // Create LP token for this ID for both a and b.
-                        //[LP] let lp_addresss = self.create_lp_token();
-                        //[LP] let lp_a_resource_manager = borrow_resource_manager!(lp_addresss);
+                        let lp_addresss = self.create_lp_token();
+                        let lp_a_resource_manager = borrow_resource_manager!(lp_addresss);
 
                         // info!("[add_liquidity]: New LP: {:?}", lp_addresss);
 
                         if inf_id <= self.active_bin && buckets.0.amount() >= b1_per_bin {
                             let price_of_bin: Decimal = self.get_price(inf_id); // [Check] If it's better to calculate without ID.
-                            //[LP]let lp_a_tokens = self.lp_badge.authorize(||
-                            //[LP]lp_a_resource_manager.mint(price_of_bin * b1_per_bin)
-                            //[LP]);
-                            //[LP] self.a_lp_id.insert(lp_addresss, inf_id); // Will be used for remove
+                            let lp_a_tokens = self.lp_badge.authorize(||
+                                lp_a_resource_manager.mint(price_of_bin * b1_per_bin)
+                            );
+                            self.a_lp_id.insert(lp_addresss, inf_id); // Will be used for remove
                             // info!(
                             //     "[add_liquidity]: KeyValueStore Address: {:?}, Id: {}",
                             //     lp_addresss,
@@ -243,13 +239,13 @@ mod ociswap_module {
                                 self.b_bins.insert(inf_id, other_bin);
                             }
 
-                            //[LP]lp_tokens.push(lp_a_tokens);
+                            lp_tokens.push(lp_a_tokens);
                         }
                         if inf_id >= self.active_bin && buckets.1.amount() >= b2_per_bin {
-                            //[LP]let lp_a_tokens = self.lp_badge.authorize(||
-                            //[LP] lp_a_resource_manager.mint(b2_per_bin)
-                            //[LP]);
-                            //[LP] self.b_lp_id.insert(lp_addresss, inf_id); // Will be used for remove
+                            let lp_a_tokens = self.lp_badge.authorize(||
+                                lp_a_resource_manager.mint(b2_per_bin)
+                            );
+                            self.b_lp_id.insert(lp_addresss, inf_id); // Will be used for remove
 
                             let new_bin = Bin::new(
                                 inf_id,
@@ -273,18 +269,20 @@ mod ociswap_module {
                                 self.a_bins.insert(inf_id, other_bin);
                             }
 
-                            //[LP]lp_tokens.push(lp_a_tokens);
+                            lp_tokens.push(lp_a_tokens);
                         }
                     }
-                    Some(value) => {
+                    Some(_) => {
                         // Get Vault for that ID and add token.
                         if inf_id <= self.active_bin && buckets.0.amount() >= b1_per_bin {
                             let mut my_bin = self.a_bins.get_mut(&inf_id).unwrap();
                             my_bin.bin_vault.put(buckets.0.take(b1_per_bin));
-                            //[LP] let lp_a_resource_manager = borrow_resource_manager!(my_bin.bin_lp_address);
-                            //[LP] let lp_a_tokens = self.lp_badge.authorize(||
-                            //[LP]     lp_a_resource_manager.mint(b2_per_bin)
-                            //[LP] );
+                            let lp_a_resource_manager = borrow_resource_manager!(
+                                my_bin.bin_lp_address
+                            );
+                            let lp_a_tokens = self.lp_badge.authorize(||
+                                lp_a_resource_manager.mint(b2_per_bin)
+                            );
 
                             info!(
                                 "[add_liquidity]: {} Old A bin id: {} (Active bin: {})",
@@ -294,15 +292,17 @@ mod ociswap_module {
                             );
                             info!("[add_liquidity]: Bucket A amount left: {}", buckets.0.amount());
 
-                            //[LP] lp_tokens.push(lp_a_tokens);
+                            lp_tokens.push(lp_a_tokens);
                         }
                         if inf_id >= self.active_bin && buckets.1.amount() >= b2_per_bin {
                             let mut my_bin = self.b_bins.get_mut(&inf_id).unwrap();
                             my_bin.bin_vault.put(buckets.1.take(b2_per_bin));
-                            //[LP] let lp_b_resource_manager = borrow_resource_manager!(my_bin.bin_lp_address);
-                            //[LP] let lp_b_tokens = self.lp_badge.authorize(||
-                            //[LP]     lp_b_resource_manager.mint(b2_per_bin)
-                            //[LP] );
+                            let lp_b_resource_manager = borrow_resource_manager!(
+                                my_bin.bin_lp_address
+                            );
+                            let lp_b_tokens = self.lp_badge.authorize(||
+                                lp_b_resource_manager.mint(b2_per_bin)
+                            );
 
                             info!(
                                 "[add_liquidity]: {} Old B bin id: {} (Active bin: {})",
@@ -312,7 +312,7 @@ mod ociswap_module {
                             );
                             info!("[add_liquidity]: Bucket B amount left: {}", buckets.1.amount());
 
-                            //[LP] lp_tokens.push(lp_b_tokens);
+                            lp_tokens.push(lp_b_tokens);
                         }
                     }
                 }
@@ -546,17 +546,17 @@ mod ociswap_module {
             //     (id - dec!(2).powi(23)).to_string().parse::<i64>().unwrap()
             // );
 
-            // price
+            // price;
 
-            // // Calculate price (constant sum)
-            // // p = (1+ binStep)^(activeBin - 2^23)
-            // let price: Decimal = (dec!(1) + self.bin_step).pow(id - dec!(2).powi(23));
+            // Calculate price (constant sum)
+            // p = (1+ binStep)^(activeBin - 2^23)
+            let price: Decimal = (dec!(1) + self.bin_step).pow(id - dec!(2).powi(23));
 
-            // price
+            price
 
             //[Remove]
             //println!("ID: {}", id);
-            dec!(20)
+            //dec!(20)
         }
 
         // Returns the ID for a certain price

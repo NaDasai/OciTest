@@ -11,6 +11,7 @@ use transaction::model::TestTransaction;
 
 #[test]
 fn test_ociswap() {
+    let amount_to_swap = dec!(2);
     // Setup the environment
     //let mut store = TypedInMemorySubstateStore::with_bootstrap();
     //let mut test_runner = TestRunner::new(true, &mut store);
@@ -48,7 +49,7 @@ fn test_ociswap() {
             args!(token_a, token_b, dec!(20), dec!("0.003"))
         )
         .build();
-    let receipt = test_runner.execute_manifest_ignoring_fee(
+    let receipt = test_runner.execute_manifest_with_max_cost_unit_limit(
         manifest,
         vec![NonFungibleGlobalId::from_public_key(&public_key)]
     );
@@ -83,7 +84,7 @@ fn test_ociswap() {
 
         .call_method(account_component, "deposit_batch", args!(ManifestExpression::EntireWorktop))
         .build();
-    let receipt = test_runner.execute_manifest_ignoring_fee(
+    let receipt = test_runner.execute_manifest_with_max_cost_unit_limit(
         manifest,
         vec![NonFungibleGlobalId::from_public_key(&public_key)]
     );
@@ -114,7 +115,7 @@ fn test_ociswap() {
 
         .call_method(account_component, "deposit_batch", args!(ManifestExpression::EntireWorktop))
         .build();
-    let receipt = test_runner.execute_manifest_ignoring_fee(
+    let receipt = test_runner.execute_manifest_with_max_cost_unit_limit(
         manifest,
         vec![NonFungibleGlobalId::from_public_key(&public_key)]
     );
@@ -128,12 +129,12 @@ fn test_ociswap() {
     // Test the `swap` method.
     let manifest = ManifestBuilder::new()
         .withdraw_from_account_by_amount(account_component, dec!(10), token_a)
-        .take_from_worktop_by_amount(dec!(2), token_a, |continue_transaction, bucket_id_a| {
+        .take_from_worktop_by_amount(amount_to_swap, token_a, |continue_transaction, bucket_id_a| {
             continue_transaction.call_method(component, "swap", args!(bucket_id_a))
         })
         .call_method(account_component, "deposit_batch", args!(ManifestExpression::EntireWorktop))
         .build();
-    let receipt = test_runner.execute_manifest_ignoring_fee(
+    let receipt = test_runner.execute_manifest_with_max_cost_unit_limit(
         manifest,
         vec![NonFungibleGlobalId::from_public_key(&public_key)]
     );
@@ -153,9 +154,15 @@ trait ExecuteManifestWithMaxCostUnitLimit {
 impl ExecuteManifestWithMaxCostUnitLimit for TestRunner {
     fn execute_manifest_with_max_cost_unit_limit(
         &mut self,
-        manifest: TransactionManifest,
+        mut manifest: TransactionManifest,
         initial_proofs: Vec<NonFungibleGlobalId>
     ) -> TransactionReceipt {
+        manifest.instructions.insert(0, transaction::model::BasicInstruction::CallMethod {
+            component_address: FAUCET_COMPONENT,
+            method_name: "lock_fee".to_string(),
+            args: args!(dec!("1000000")), // Note that I'm locking 1 million XRD here which should be much more than enough.
+        });
+
         let transaction = TestTransaction::new(manifest, self.next_transaction_nonce(), u32::MAX);
         let executable = transaction.get_executable(initial_proofs);
         self.execute_transaction(executable)

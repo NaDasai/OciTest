@@ -779,3 +779,17 @@ More choices for fee? (Muffin: new pool)
 
             // soulboundtoken ? add rules. users can't transfer themself.
             // Enjoy
+
+            // NFT
+            // Correct, you can't change the structure of it.  As David pointed out, you can change appropriately marked elements, but you can't change their type
+
+            // Hey, ca changerait pas grand chose, tu dois quand même update la position de l’utilisateur et le total supply
+            // To know: C’est pour ça que j’utilise un semblant de erc1155, pas besoin de créer un vrai Token.
+            // ! Pour moi ça reviendra au même niveau coup, mais tu pers la fongibilité
+            // ? Le metadata serait on chain?
+            // : Niveau gas ce sera quasiment pareil du coup. Mais oui ça devrait marcher si tu update le metadata selon les bins
+            // : Parce que tu auras globalement un slot par bin
+            // Asset oriented!!! ;)
+
+            // I see that I can pass in a struct to build my NFT, and I'm assuming I cannot change that data once it has been created, correct?
+            // Correct, you can't change the structure of it.  As David pointed out, you can change appropriately marked elements, but you can't change their type
