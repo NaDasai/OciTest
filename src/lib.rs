@@ -448,8 +448,15 @@ mod ociswap_module {
                             my_a_bin.bin_vault.amount()
                         );
 
+                        info!(
+                            "[swap]: Will take {} A. With b_bin amount = {} and price active bin = {}",
+                            my_b_bin_amount / price_of_active_bin,
+                            my_b_bin_amount,
+                            price_of_active_bin
+                        );
+
                         let transition_bucket = input_tokens.take(
-                            my_b_bin.bin_vault.amount() / price_of_active_bin
+                            my_b_bin_amount / price_of_active_bin
                         );
                         my_a_bin.bin_vault.put(transition_bucket);
                         info!(
