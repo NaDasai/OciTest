@@ -374,9 +374,11 @@ mod ociswap_module {
 
         /// Swaps token A for B, or vice versa.
         /// [TODO] Add slippage and belief price
-        pub fn swap(&mut self, mut input_tokens: Bucket) -> Bucket {
+        pub fn swap(&mut self, mut input_tokens: Bucket) -> Vec<Bucket> {
             // Calculate the swap fee.
             //let fee_amount = input_tokens.amount() * self.base_fee;
+
+            let mut all_output_tokens: Vec<Bucket> = Vec::new();
 
             // Get the price of active bin.
             let mut price_of_active_bin: Decimal = self.get_price(self.active_bin);
@@ -407,7 +409,7 @@ mod ociswap_module {
                     // Check amount of B available.
                     if b_amount <= my_b_bin.bin_vault.amount() {
                         // Enough B in active bin.
-                        let mut my_a_bin = self.a_bins.get_mut(&self.active_bin).unwrap();
+                        //let mut my_a_bin = self.a_bins.get_mut(&self.active_bin).unwrap();
 
                         info!(
                             "[swap]: {} A amount Swapped to {} B and ended.",
@@ -416,7 +418,7 @@ mod ociswap_module {
                         );
 
                         // Put the input A into respective A bin
-                        my_a_bin.bin_vault.put(input_tokens);
+                        //my_a_bin.bin_vault.put(input_tokens);
                         break;
                     } else {
                         // More A than B.
@@ -436,18 +438,20 @@ mod ociswap_module {
                         //self.swap(my_b_bin.bin_vault.take(my_b_bin.bin_vault.amount()));
                         // Taking amount of B in the bin.
                         let my_b_bin_amount = my_b_bin.bin_vault.amount();
-                        my_b_bin.bin_vault.take(my_b_bin_amount);
+                        let bin_bucket = my_b_bin.bin_vault.take(my_b_bin_amount);
+
+                        all_output_tokens.push(bin_bucket);
 
                         let mut my_a_bin = self.a_bins.get_mut(&self.active_bin).unwrap();
                         info!(
                             "[swap]: {} A Vault amount before take part.",
                             my_a_bin.bin_vault.amount()
                         );
-                        my_a_bin.bin_vault.put(
-                            input_tokens.take_internal(
-                                my_b_bin.bin_vault.amount() / price_of_active_bin
-                            )
+
+                        let transition_bucket = input_tokens.take(
+                            my_b_bin.bin_vault.amount() / price_of_active_bin
                         );
+                        my_a_bin.bin_vault.put(transition_bucket);
                         info!(
                             "[swap]: {} A Vault amount after take part.",
                             my_a_bin.bin_vault.amount()
@@ -467,6 +471,9 @@ mod ociswap_module {
                 }
                 // [TODO][Check] Get amount of A and take fees from B.
                 // Give B amount to user.
+                let mut my_a_bin = self.a_bins.get_mut(&self.active_bin).unwrap();
+                info!("[swap]: {} A token left.", input_tokens.amount());
+                my_a_bin.bin_vault.put(input_tokens);
                 my_b_bin.bin_vault.take(b_amount)
             } else {
                 // B to A  <- self.b_token_address B to A
@@ -519,7 +526,8 @@ mod ociswap_module {
                 self.b_bins.get_mut(&self.active_bin).unwrap().bin_id
             );
 
-            output_tokens
+            all_output_tokens.push(output_tokens);
+            all_output_tokens
             //self.xrd_fee.take(fee_amount)
         }
 

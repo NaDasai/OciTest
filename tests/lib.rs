@@ -11,7 +11,7 @@ use transaction::model::TestTransaction;
 
 #[test]
 fn test_ociswap() {
-    let amount_to_swap = dec!(2);
+    let amount_to_swap = dec!(4);
     // Setup the environment
     //let mut store = TypedInMemorySubstateStore::with_bootstrap();
     //let mut test_runner = TestRunner::new(true, &mut store);
