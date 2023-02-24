@@ -793,3 +793,30 @@ More choices for fee? (Muffin: new pool)
 
             // I see that I can pass in a struct to build my NFT, and I'm assuming I cannot change that data once it has been created, correct?
             // Correct, you can't change the structure of it.  As David pointed out, you can change appropriately marked elements, but you can't change their type
+
+            // This macro adds, at compile time, methods to the struct to make it compatible with the Radix Engine and to allow us to use this structure as metadata for our NFTs.
+
+            let valid_proof = self.check_single_position_proof(position_proof);
+            let position_nfr = valid_proof.non_fungible::<Position>();
+            let id = position_nfr.local_id()
+
+        fn check_single_position_proof(&self, position_proof: Proof) -> ValidatedProof {
+            let valid_proof: ValidatedProof = position_proof
+                .validate_proof(ProofValidationMode::ValidateContainsAmount(
+                    self.position_address,
+                    dec!(1),
+                ))
+                .expect("Invalid proof provided");
+
+            valid_proof
+        }
+
+        // close_position pour supprimer le nft
+
+
+        // Create LP NFR (1 one each user)
+        // Update for the 1 NFR metadata for each bin creation.
+        // Return 1 NFR
+
+        // mint_uuid_non_fungible
+        // mint_non_fungible
