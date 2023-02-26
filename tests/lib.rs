@@ -1,5 +1,3 @@
-//use radix_engine::ledger::*;
-//use radix_engine_interface::core::NetworkDefinition;
 use radix_engine_interface::model::FromPublicKey;
 use scrypto::prelude::*;
 use scrypto_unit::*;
@@ -11,7 +9,9 @@ use transaction::model::TestTransaction;
 
 #[test]
 fn test_ociswap() {
-    let amount_to_swap = dec!(2);
+    let amount_to_swap = dec!(8);
+    let opt_bucket_1: Option<Bucket> = None;
+    let opt_bucket_2: Option<Bucket> = None;
     // Setup the environment
     //let mut store = TypedInMemorySubstateStore::with_bootstrap();
     //let mut test_runner = TestRunner::new(true, &mut store);
@@ -34,12 +34,6 @@ fn test_ociswap() {
         account_component
     );
 
-    // pub fn instantiate_pool(
-    //     a_token_address: ResourceAddress,
-    //     b_token_address: ResourceAddress, // Not a Bucket
-    //     price: Decimal,
-    //     bin_step: Decimal
-    // ) -> ComponentAddress;
     // Test the `instantiate_pool` function.
     let manifest = ManifestBuilder::new()
         .call_function(
@@ -57,11 +51,6 @@ fn test_ociswap() {
     receipt.expect_commit_success();
     let component = receipt.expect_commit().entity_changes.new_component_addresses[0];
 
-    // let resources = test_runner.get_component_resources(component);
-    // for (key, value) in &resources {
-    //     println!("Resource {:?}: {}", key, value);
-    // }
-
     println!("First transaction manifest: add_liquidity 1\n");
     //**************************************************************************************************************************************/
     // Test the `add_liquidity` method.
@@ -76,7 +65,7 @@ fn test_ociswap() {
                     continue_transaction2.call_method(
                         component,
                         "add_liquidity",
-                        args!(bucket_id_a, bucket_id_b, dec!("19.5"), dec!("20.5"))
+                        args!(bucket_id_a, bucket_id_b, dec!("19.5"), dec!("20.5"), opt_bucket_1)
                     )
                 }
             )
@@ -93,34 +82,34 @@ fn test_ociswap() {
     receipt.expect_commit_success();
 
     // //**************************************************************************************************************************************/
-    // println!("Second transaction manifest: add_liquidity 2\n");
-    // //**************************************************************************************************************************************/
-    // // Test the `add_liquidity` method.
-    // let manifest = ManifestBuilder::new()
-    //     .withdraw_from_account_by_amount(account_component, dec!(100), token_a)
-    //     .withdraw_from_account_by_amount(account_component, dec!(100), token_b)
-    //     .take_from_worktop_by_amount(dec!(100), token_a, |continue_transaction, bucket_id_a| {
-    //         continue_transaction.take_from_worktop_by_amount(
-    //             dec!(100),
-    //             token_b,
-    //             |continue_transaction2, bucket_id_b| {
-    //                 continue_transaction2.call_method(
-    //                     component,
-    //                     "add_liquidity",
-    //                     args!(bucket_id_a, bucket_id_b, dec!("19.8"), dec!("20.7"))
-    //                 )
-    //             }
-    //         )
-    //     })
+    println!("Second transaction manifest: add_liquidity 2\n");
+    //**************************************************************************************************************************************/
+    // Test the `add_liquidity` method.
+    let manifest = ManifestBuilder::new()
+        .withdraw_from_account_by_amount(account_component, dec!(100), token_a)
+        .withdraw_from_account_by_amount(account_component, dec!(100), token_b)
+        .take_from_worktop_by_amount(dec!(100), token_a, |continue_transaction, bucket_id_a| {
+            continue_transaction.take_from_worktop_by_amount(
+                dec!(100),
+                token_b,
+                |continue_transaction2, bucket_id_b| {
+                    continue_transaction2.call_method(
+                        component,
+                        "add_liquidity",
+                        args!(bucket_id_a, bucket_id_b, dec!("19.8"), dec!("20.7"), opt_bucket_2)
+                    )
+                }
+            )
+        })
 
-    //     .call_method(account_component, "deposit_batch", args!(ManifestExpression::EntireWorktop))
-    //     .build();
-    // let receipt = test_runner.execute_manifest_with_max_cost_unit_limit(
-    //     manifest,
-    //     vec![NonFungibleGlobalId::from_public_key(&public_key)]
-    // );
-    // println!("{:?}\n", receipt);
-    // receipt.expect_commit_success();
+        .call_method(account_component, "deposit_batch", args!(ManifestExpression::EntireWorktop))
+        .build();
+    let receipt = test_runner.execute_manifest_with_max_cost_unit_limit(
+        manifest,
+        vec![NonFungibleGlobalId::from_public_key(&public_key)]
+    );
+    println!("{:?}\n", receipt);
+    receipt.expect_commit_success();
     // //**************************************************************************************************************************************/
 
     // //**************************************************************************************************************************************/

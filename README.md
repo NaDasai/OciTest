@@ -820,3 +820,5 @@ More choices for fee? (Muffin: new pool)
 
         // mint_uuid_non_fungible
         // mint_non_fungible
+
+        // take_from_worktop_by_ids

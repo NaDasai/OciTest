@@ -1,12 +1,7 @@
 use scrypto::prelude::*;
-// use std::ops::Neg;
-// use std::ops::Mul;
 use std::ops::Add;
 use std::ops::Div;
 
-//const BASE_FACTOR: Decimal = Decimal::from("0.003");
-
-//#[scrypto(Debug, TypeId, Encode, Decode, Describe)]
 #[derive(ScryptoCategorize, ScryptoDecode, ScryptoEncode, LegacyDescribe)]
 pub struct Bin {
     bin_id: Decimal,
@@ -46,12 +41,11 @@ mod ociswap_module {
         bin_step: Decimal,
 
         // The reserve for token A and token B
-        // [TODO] Check crate bimap v0.6.2
         a_bins: KeyValueStore<Decimal, Bin>,
-        a_lp_id: KeyValueStore<ResourceAddress, Decimal>,
+        a_lp_id: KeyValueStore<ResourceAddress, Decimal>, // [Remove]
 
         b_bins: KeyValueStore<Decimal, Bin>,
-        b_lp_id: KeyValueStore<ResourceAddress, Decimal>,
+        b_lp_id: KeyValueStore<ResourceAddress, Decimal>, // [Remove]
 
         // [Check] Do we add both addresses for checks when adding liquidity.
         a_token_address: ResourceAddress,
@@ -90,9 +84,6 @@ mod ociswap_module {
                 .metadata("name", "LP Token Mint Auth")
                 .mint_initial_supply(1);
 
-            // [TODO] Check with Flo the log function.
-            //let active_bin = log(price) / log(1.into() + bin_step) + 2.into().powi(23);
-
             let mut active_bin = price.log() / (dec!(1) + bin_step).log() + dec!(2).powi(23);
 
             active_bin = Decimal::floor(&active_bin);
@@ -101,19 +92,12 @@ mod ociswap_module {
             info!("[instantiate_pool]: Active bin round: {}", active_bin.0);
             debug!("[instantiate_pool]: Active bin round: {}", active_bin.0);
 
-            let nfr_address = ResourceBuilder::new_string_non_fungible()
+            let nfr_address = ResourceBuilder::new_integer_non_fungible()
                 .metadata("name", "LP NFT")
                 .metadata("description", "This is an NFT provided to each liquidity provider")
                 .mintable(AccessRule::AllowAll, LOCKED)
                 .updateable_non_fungible_data(AccessRule::AllowAll, LOCKED)
                 .create_with_no_initial_supply();
-            // .mint_initial_supply(
-            //     vec![(
-            //         (NonFungibleLocalId::Integer(1),
-            //         Lp {
-            //             id_lp: KeyValueStore::new()}
-            //     )]
-            // );
 
             // Instantiate our Ociswap component
             let ociswap = (Self {
@@ -147,8 +131,8 @@ mod ociswap_module {
             a_tokens: Bucket, //mut a_tokens: Bucket,
             b_tokens: Bucket, //mut b_tokens: Bucket,
             price_inf: Decimal,
-            price_sup: Decimal
-            // opt_lp_nfr: Option<Bucket>
+            price_sup: Decimal,
+            opt_lp_nfr: Option<Bucket>
         ) -> Vec<Bucket> {
             // No remainer
 
@@ -207,34 +191,29 @@ mod ociswap_module {
 
             let mut all_buckets: Vec<Bucket> = Vec::new();
 
-            // // We are checking here if we have an NFR or do we have to create one.
-            // let my_lp_nfr = match opt_lp_nfr {
-            //     None => {
-            //         let lp_a_resource_manager = borrow_resource_manager!(self.lp_nfr_address);
-            //         self.lp_badge.authorize(|| lp_a_resource_manager.mint(1))
-            //     }
-            //     Some(lp_nfr_bucket) => { lp_nfr_bucket }
-            // };
+            // We are checking here if we have an NFR or do we have to create one.
+            let my_lp_nfr = match opt_lp_nfr {
+                None => {
+                    let nft_data = Lp {
+                        id_lp: HashMap::new(),
+                    };
+                    // [TODO] Find the right integer
+                    let id_integer = inf_id.to_string().parse::<u64>().unwrap();
 
-            let nft_data = Lp {
-                id_lp: HashMap::new(),
+                    self.lp_badge.authorize(|| {
+                        borrow_resource_manager!(self.lp_nfr_address).mint_non_fungible(
+                            // The NFT id
+                            &NonFungibleLocalId::Integer(id_integer.into()),
+                            // The NFT data
+                            nft_data
+                        )
+                    })
+                }
+                Some(lp_nfr_bucket) => { lp_nfr_bucket }
             };
-
-            let my_lp_nfr = self.lp_badge.authorize(|| {
-                borrow_resource_manager!(self.lp_nfr_address).mint_non_fungible(
-                    // The NFT id
-                    //&NonFungibleLocalId::Integer((1).into()),
-                    &NonFungibleLocalId::String(
-                        StringNonFungibleLocalId::new("1".to_owned()).unwrap()
-                    ),
-                    // The NFT data
-                    nft_data
-                )
-            });
 
             let lp_nfr = my_lp_nfr.non_fungible::<Lp>();
             let nfr_id = lp_nfr.local_id();
-            //let nfr_id = NonFungibleLocalId::Integer((1).into());
 
             //let range = range.to_string().parse::<i64>().unwrap();
             //let range: i64 = range.round(0, RoundingMode::TowardsZero).to_string().parse().unwrap();
@@ -328,7 +307,7 @@ mod ociswap_module {
                     }
                 }
 
-                inf_id = inf_id + 1;
+                inf_id = inf_id + 1; // [TODO] Change name
             }
 
             //info!("[add_liquidity]: LP Tokens: {:?}", lp_tokens);
@@ -601,8 +580,22 @@ mod ociswap_module {
             let resource_manager = borrow_resource_manager!(self.lp_nfr_address);
             let mut nft_data: Lp = resource_manager.get_non_fungible_data(&id); // [Check] mut
 
-            // Update the `used` field
-            nft_data.id_lp.insert(bin_id, lp_amount);
+            // Update the `amount` field
+            if nft_data.id_lp.contains_key(&bin_id) {
+                *nft_data.id_lp.get_mut(&bin_id).unwrap() += lp_amount;
+                info!(
+                    "[update_position]: Updated existing value. NonFungibleLocalId {}, bin ID {}",
+                    id,
+                    bin_id
+                );
+            } else {
+                nft_data.id_lp.insert(bin_id, lp_amount);
+                info!(
+                    "[update_position]: Created new value. NonFungibleLocalId {}, bin ID {}",
+                    id,
+                    bin_id
+                );
+            }
 
             // Update the data on the network
             resource_manager.update_non_fungible_data(&id, nft_data);
