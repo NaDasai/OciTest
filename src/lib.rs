@@ -16,7 +16,7 @@ pub struct Bin {
 #[derive(NonFungibleData)]
 pub struct Lp {
     #[mutable]
-    id_lp: KeyValueStore<Decimal, Decimal>,
+    id_lp: HashMap<Decimal, Decimal>,
 }
 
 impl Bin {
@@ -101,7 +101,7 @@ mod ociswap_module {
             info!("[instantiate_pool]: Active bin round: {}", active_bin.0);
             debug!("[instantiate_pool]: Active bin round: {}", active_bin.0);
 
-            let nfr_address = ResourceBuilder::new_integer_non_fungible()
+            let nfr_address = ResourceBuilder::new_string_non_fungible()
                 .metadata("name", "LP NFT")
                 .metadata("description", "This is an NFT provided to each liquidity provider")
                 .mintable(AccessRule::AllowAll, LOCKED)
@@ -217,22 +217,24 @@ mod ociswap_module {
             // };
 
             let nft_data = Lp {
-                id_lp: KeyValueStore::new(),
+                id_lp: HashMap::new(),
             };
 
             let my_lp_nfr = self.lp_badge.authorize(|| {
                 borrow_resource_manager!(self.lp_nfr_address).mint_non_fungible(
                     // The NFT id
-                    &NonFungibleLocalId::Integer((1).into()),
+                    //&NonFungibleLocalId::Integer((1).into()),
+                    &NonFungibleLocalId::String(
+                        StringNonFungibleLocalId::new("1".to_owned()).unwrap()
+                    ),
                     // The NFT data
                     nft_data
                 )
             });
 
-            //let lp_nfr = my_lp_nfr.take_non_fungible(&NonFungibleLocalId::Integer((1).into()));
             let lp_nfr = my_lp_nfr.non_fungible::<Lp>();
             let nfr_id = lp_nfr.local_id();
-            //self.update_position(nfr_id.clone(), dec!(1), dec!(1)); [Remove]
+            //let nfr_id = NonFungibleLocalId::Integer((1).into());
 
             //let range = range.to_string().parse::<i64>().unwrap();
             //let range: i64 = range.round(0, RoundingMode::TowardsZero).to_string().parse().unwrap();
@@ -242,23 +244,8 @@ mod ociswap_module {
                 // bins are created when needed.
                 match self.a_bins.get(&inf_id) {
                     None => {
-                        // // Create LP token for this ID for both a and b.
-                        // let lp_addresss = self.create_lp_token();
-                        // let lp_a_resource_manager = borrow_resource_manager!(lp_addresss);
-
-                        // info!("[add_liquidity]: New LP: {:?}", lp_addresss);
-
                         if inf_id <= self.active_bin && buckets.0.amount() >= b1_per_bin {
                             let price_of_bin: Decimal = self.get_price(inf_id); // [Check] If it's better to calculate without ID.
-                            // let lp_a_tokens = self.lp_badge.authorize(||
-                            //     lp_a_resource_manager.mint(price_of_bin * b1_per_bin)
-                            // );
-                            //self.a_lp_id.insert(lp_addresss, inf_id); // Will be used for remove
-                            // info!(
-                            //     "[add_liquidity]: KeyValueStore Address: {:?}, Id: {}",
-                            //     lp_addresss,
-                            //     inf_id
-                            // );
 
                             let new_bin = Bin::new(
                                 inf_id,
@@ -281,15 +268,9 @@ mod ociswap_module {
                                 self.b_bins.insert(inf_id, other_bin);
                             }
 
-                            //lp_tokens.push(lp_a_tokens);
                             self.update_position(nfr_id.clone(), inf_id, price_of_bin * b1_per_bin);
                         }
                         if inf_id >= self.active_bin && buckets.1.amount() >= b2_per_bin {
-                            // let lp_a_tokens = self.lp_badge.authorize(||
-                            //     lp_a_resource_manager.mint(b2_per_bin)
-                            // );
-                            //self.b_lp_id.insert(lp_addresss, inf_id); // Will be used for remove
-
                             let new_bin = Bin::new(
                                 inf_id,
                                 Vault::with_bucket(buckets.1.take(b2_per_bin))
@@ -310,7 +291,6 @@ mod ociswap_module {
                                 self.a_bins.insert(inf_id, other_bin);
                             }
 
-                            //lp_tokens.push(lp_a_tokens);
                             self.update_position(nfr_id.clone(), inf_id, b2_per_bin);
                         }
                     }
@@ -319,12 +299,6 @@ mod ociswap_module {
                         if inf_id <= self.active_bin && buckets.0.amount() >= b1_per_bin {
                             let mut my_bin = self.a_bins.get_mut(&inf_id).unwrap();
                             my_bin.bin_vault.put(buckets.0.take(b1_per_bin));
-                            // let lp_a_resource_manager = borrow_resource_manager!(
-                            //     my_bin.bin_lp_address
-                            // );
-                            // let lp_a_tokens = self.lp_badge.authorize(||
-                            //     lp_a_resource_manager.mint(b2_per_bin)
-                            // );
 
                             info!(
                                 "[add_liquidity]: {} Old A bin id: {} (Active bin: {})",
@@ -334,18 +308,11 @@ mod ociswap_module {
                             );
                             info!("[add_liquidity]: Bucket A amount left: {}", buckets.0.amount());
 
-                            //lp_tokens.push(lp_a_tokens);
                             self.update_position(nfr_id.clone(), inf_id, b2_per_bin);
                         }
                         if inf_id >= self.active_bin && buckets.1.amount() >= b2_per_bin {
                             let mut my_bin = self.b_bins.get_mut(&inf_id).unwrap();
                             my_bin.bin_vault.put(buckets.1.take(b2_per_bin));
-                            // let lp_b_resource_manager = borrow_resource_manager!(
-                            //     my_bin.bin_lp_address
-                            // );
-                            // let lp_b_tokens = self.lp_badge.authorize(||
-                            //     lp_b_resource_manager.mint(b2_per_bin)
-                            // );
 
                             info!(
                                 "[add_liquidity]: {} Old B bin id: {} (Active bin: {})",
@@ -371,7 +338,6 @@ mod ociswap_module {
             all_buckets.push(buckets.0);
             all_buckets.push(buckets.1);
             all_buckets.push(my_lp_nfr);
-            //all_buckets.push(lp_nfr);
 
             info!("[add_liquidity]: All Buckets returned: {:?}", all_buckets);
 
@@ -633,7 +599,7 @@ mod ociswap_module {
 
         pub fn update_position(&self, id: NonFungibleLocalId, bin_id: Decimal, lp_amount: Decimal) {
             let resource_manager = borrow_resource_manager!(self.lp_nfr_address);
-            let nft_data: Lp = resource_manager.get_non_fungible_data(&id); // [Check] mut
+            let mut nft_data: Lp = resource_manager.get_non_fungible_data(&id); // [Check] mut
 
             // Update the `used` field
             nft_data.id_lp.insert(bin_id, lp_amount);
