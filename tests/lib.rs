@@ -12,6 +12,7 @@ fn test_ociswap() {
     let amount_to_swap = dec!(8);
     let opt_bucket_1: Option<Bucket> = None;
     let opt_bucket_2: Option<Bucket> = None;
+    let opt_bucket_3: Option<Bucket> = None;
     // Setup the environment
     //let mut store = TypedInMemorySubstateStore::with_bootstrap();
     //let mut test_runner = TestRunner::new(true, &mut store);
@@ -113,7 +114,58 @@ fn test_ociswap() {
     // //**************************************************************************************************************************************/
 
     // //**************************************************************************************************************************************/
-    println!("Third transaction manifest: Swap\n");
+    println!("Third transaction manifest: add_liquidity 3\n");
+    //**************************************************************************************************************************************/
+    // Test the `add_liquidity` method.
+
+    let mut distribution: Vec<(Decimal, Decimal)> = Vec::new();
+    distribution.push((dec!(8389604), dec!(20)));
+    distribution.push((dec!(8389605), dec!(20)));
+    distribution.push((dec!(8389606), dec!(20)));
+    distribution.push((dec!(8389607), dec!(20)));
+    //distribution.push((dec!(8389608), dec!(20)));
+    distribution.push((dec!(8389608), dec!(8))); // Active Bin
+    distribution.push((dec!(8389609), dec!(8)));
+    distribution.push((dec!(8389610), dec!(8)));
+    distribution.push((dec!(8389611), dec!(8)));
+    distribution.push((dec!(8389612), dec!(8)));
+    distribution.push((dec!(8389613), dec!(8)));
+    distribution.push((dec!(8389614), dec!(8)));
+    distribution.push((dec!(8389615), dec!(8)));
+    distribution.push((dec!(8389616), dec!(8)));
+    distribution.push((dec!(8389617), dec!(8)));
+    distribution.push((dec!(8389618), dec!(8)));
+    distribution.push((dec!(8389619), dec!(8)));
+
+    let manifest = ManifestBuilder::new()
+        .withdraw_from_account_by_amount(account_component, dec!(100), token_a)
+        .withdraw_from_account_by_amount(account_component, dec!(100), token_b)
+        .take_from_worktop_by_amount(dec!(100), token_a, |continue_transaction, bucket_id_a| {
+            continue_transaction.take_from_worktop_by_amount(
+                dec!(100),
+                token_b,
+                |continue_transaction2, bucket_id_b| {
+                    continue_transaction2.call_method(
+                        component,
+                        "add_specific_liquidity",
+                        args!(bucket_id_a, bucket_id_b, distribution, opt_bucket_3)
+                    )
+                }
+            )
+        })
+
+        .call_method(account_component, "deposit_batch", args!(ManifestExpression::EntireWorktop))
+        .build();
+    let receipt = test_runner.execute_manifest_with_max_cost_unit_limit(
+        manifest,
+        vec![NonFungibleGlobalId::from_public_key(&public_key)]
+    );
+    println!("{:?}\n", receipt);
+    receipt.expect_commit_success();
+    // //**************************************************************************************************************************************/
+
+    // //**************************************************************************************************************************************/
+    println!("Transaction manifest: Swap\n");
     //**************************************************************************************************************************************/
     // Test the `swap` method.
     let manifest = ManifestBuilder::new()

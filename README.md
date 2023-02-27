@@ -822,3 +822,5 @@ More choices for fee? (Muffin: new pool)
         // mint_non_fungible
 
         // take_from_worktop_by_ids
+        // LP amount with Vec in add_liquidity?
+        // Check swap with B (same code?)
