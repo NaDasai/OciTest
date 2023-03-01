@@ -118,24 +118,25 @@ fn test_ociswap() {
     //**************************************************************************************************************************************/
     // Test the `add_liquidity` method.
 
-    let mut distribution: Vec<(Decimal, Decimal)> = Vec::new();
-    distribution.push((dec!(8389604), dec!(20)));
-    distribution.push((dec!(8389605), dec!(20)));
-    distribution.push((dec!(8389606), dec!(20)));
-    distribution.push((dec!(8389607), dec!(20)));
-    //distribution.push((dec!(8389608), dec!(20)));
-    distribution.push((dec!(8389608), dec!(8))); // Active Bin
-    distribution.push((dec!(8389609), dec!(8)));
-    distribution.push((dec!(8389610), dec!(8)));
-    distribution.push((dec!(8389611), dec!(8)));
-    distribution.push((dec!(8389612), dec!(8)));
-    distribution.push((dec!(8389613), dec!(8)));
-    distribution.push((dec!(8389614), dec!(8)));
-    distribution.push((dec!(8389615), dec!(8)));
-    distribution.push((dec!(8389616), dec!(8)));
-    distribution.push((dec!(8389617), dec!(8)));
-    distribution.push((dec!(8389618), dec!(8)));
-    distribution.push((dec!(8389619), dec!(8)));
+    let mut a_distribution: Vec<(Decimal, Decimal)> = Vec::new();
+    let mut b_distribution: Vec<(Decimal, Decimal)> = Vec::new();
+    a_distribution.push((dec!(8389604), dec!(20)));
+    a_distribution.push((dec!(8389605), dec!(20)));
+    a_distribution.push((dec!(8389606), dec!(20)));
+    a_distribution.push((dec!(8389607), dec!(20)));
+    a_distribution.push((dec!(8389608), dec!(20))); // Active Bin
+    b_distribution.push((dec!(8389608), dec!(8))); // Active Bin
+    b_distribution.push((dec!(8389609), dec!(8)));
+    b_distribution.push((dec!(8389610), dec!(8)));
+    b_distribution.push((dec!(8389611), dec!(8)));
+    b_distribution.push((dec!(8389612), dec!(8)));
+    b_distribution.push((dec!(8389613), dec!(8)));
+    b_distribution.push((dec!(8389614), dec!(8)));
+    b_distribution.push((dec!(8389615), dec!(8)));
+    b_distribution.push((dec!(8389616), dec!(8)));
+    b_distribution.push((dec!(8389617), dec!(8)));
+    b_distribution.push((dec!(8389618), dec!(8)));
+    b_distribution.push((dec!(8389619), dec!(8)));
 
     let manifest = ManifestBuilder::new()
         .withdraw_from_account_by_amount(account_component, dec!(100), token_a)
@@ -148,7 +149,13 @@ fn test_ociswap() {
                     continue_transaction2.call_method(
                         component,
                         "add_specific_liquidity",
-                        args!(bucket_id_a, bucket_id_b, distribution, opt_bucket_3)
+                        args!(
+                            bucket_id_a,
+                            a_distribution,
+                            bucket_id_b,
+                            b_distribution,
+                            opt_bucket_3
+                        )
                     )
                 }
             )
@@ -181,6 +188,32 @@ fn test_ociswap() {
     );
     println!("{:?}\n", receipt);
     receipt.expect_commit_success();
+    //**************************************************************************************************************************************/
+    // //**************************************************************************************************************************************/
+    // println!("Transaction manifest: Remove liquidity\n");
+    // //**************************************************************************************************************************************/
+    // // Test the `swap` method.
+    // let manifest = ManifestBuilder::new()
+    //     .withdraw_from_account_by_amount(account_component, dec!(10), token_a)
+    //     .take_from_worktop_by_ids(
+    //         NonFungibleLocalId::Integer(3),
+    //         token_a,
+    //         |continue_transaction, bucket_id_a| {
+    //             continue_transaction.call_method(
+    //                 component,
+    //                 "remove_liquidity",
+    //                 args!(bucket_id_a, dec!(8389608), dec!(5))
+    //             )
+    //         }
+    //     )
+    //     .call_method(account_component, "deposit_batch", args!(ManifestExpression::EntireWorktop))
+    //     .build();
+    // let receipt = test_runner.execute_manifest_with_max_cost_unit_limit(
+    //     manifest,
+    //     vec![NonFungibleGlobalId::from_public_key(&public_key)]
+    // );
+    // println!("{:?}\n", receipt);
+    // receipt.expect_commit_success();
     //**************************************************************************************************************************************/
 }
 

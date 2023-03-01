@@ -879,6 +879,11 @@ let id = position_nfr.local_id()
             opt_position_proof: Option<Proof>,
         ) -> (Bucket, Bucket, Option<Bucket>)
 
+        https://blog.thoughtram.io/lifetimes-in-rust/
+        https://serde.rs/lifetimes.html
+
+        
+
 
 
 
