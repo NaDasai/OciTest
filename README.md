@@ -824,3 +824,62 @@ More choices for fee? (Muffin: new pool)
         // take_from_worktop_by_ids
         // LP amount with Vec in add_liquidity?
         // Check swap with B (same code?)
+        // Fees : https://dev.to/heymarkkop/understanding-sushiswaps-masterchef-staking-rewards-1m6f
+        // Proof not NFR
+        // https://docs.google.com/document/d/19F6QqPPO1rP8y6xvndwVC8IOYa5xhG1z9SHpyj-y-ME/edit?usp=sharing
+        // close_position (delete NFR when remove 100% liquidity : sur site)
+        // opt_position_proof: Option<Proof> (keep NFR)
+
+        #[derive(NonFungibleData)]
+        pub struct Position {
+    /// First token of the position
+    pub token_x: ResourceAddress,
+
+    /// Second token of the position
+    pub token_y: ResourceAddress,
+
+    /// Liquidity of the position
+    #[mutable]
+    pub liquidity: Decimal,
+
+    /// Value of the `x_fees_per_liq` variable of the Beaker
+    /// last time that the position collected fees
+    #[mutable]
+    pub last_x_fees_per_liq: Decimal,
+
+    /// Value of the `y_fees_per_liq` variable of the Beaker
+    /// last time that the position collected fees
+    #[mutable]
+    pub last_y_fees_per_liq: Decimal,
+}
+
+// When Proof of NFR, we don't know wich pool.. address A and B (not all in hashmap) -> verify it's the right pool with both ;) no scam
+
+let valid_proof = self.check_single_position_proof(position_proof);
+let position_nfr = valid_proof.non_fungible::<Position>();
+let id = position_nfr.local_id()
+        fn check_single_position_proof(&self, position_proof: Proof) -> ValidatedProof {
+            let valid_proof: ValidatedProof = position_proof
+                .validate_proof(ProofValidationMode::ValidateContainsAmount(
+                    self.position_address,
+                    dec!(1),
+                ))
+                .expect("Invalid proof provided");
+
+            valid_proof
+        }
+
+        // When you have proof need to make it to ValidProof (check_single_position_proof)
+        // Then ValidProof to NFR with non_fungible::<struct_associée>()
+
+                pub fn add_liquidity(
+            &mut self,
+            bucket_a: Bucket,
+            bucket_b: Bucket,
+            opt_position_proof: Option<Proof>,
+        ) -> (Bucket, Bucket, Option<Bucket>)
+
+
+
+
+
