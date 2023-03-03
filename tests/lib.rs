@@ -127,6 +127,7 @@ fn test_ociswap() {
     a_distribution.push((dec!(8389608), dec!(20))); // Active Bin
     b_distribution.push((dec!(8389608), dec!(8))); // Active Bin
     b_distribution.push((dec!(8389609), dec!(8)));
+    //a_distribution.push((dec!(8389609), dec!(20))); // Not supposed to add
     b_distribution.push((dec!(8389610), dec!(8)));
     b_distribution.push((dec!(8389611), dec!(8)));
     b_distribution.push((dec!(8389612), dec!(8)));
@@ -137,6 +138,7 @@ fn test_ociswap() {
     b_distribution.push((dec!(8389617), dec!(8)));
     b_distribution.push((dec!(8389618), dec!(8)));
     b_distribution.push((dec!(8389619), dec!(8)));
+    //b_distribution.push((dec!(8389619), dec!(4)));
 
     let manifest = ManifestBuilder::new()
         .withdraw_from_account_by_amount(account_component, dec!(100), token_a)
