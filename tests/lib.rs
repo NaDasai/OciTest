@@ -13,6 +13,7 @@ fn test_ociswap() {
     let opt_bucket_1: Option<Bucket> = None;
     let opt_bucket_2: Option<Bucket> = None;
     let opt_bucket_3: Option<Bucket> = None;
+    let opt_vec: Option<Bucket> = None;
     // Setup the environment
     //let mut store = TypedInMemorySubstateStore::with_bootstrap();
     //let mut test_runner = TestRunner::new(true, &mut store);
@@ -191,31 +192,30 @@ fn test_ociswap() {
     println!("{:?}\n", receipt);
     receipt.expect_commit_success();
     //**************************************************************************************************************************************/
-    // //**************************************************************************************************************************************/
-    // println!("Transaction manifest: Remove liquidity\n");
-    // //**************************************************************************************************************************************/
-    // // Test the `swap` method.
-    // let manifest = ManifestBuilder::new()
-    //     .withdraw_from_account_by_amount(account_component, dec!(10), token_a)
-    //     .take_from_worktop_by_ids(
-    //         NonFungibleLocalId::Integer(3),
-    //         token_a,
-    //         |continue_transaction, bucket_id_a| {
-    //             continue_transaction.call_method(
-    //                 component,
-    //                 "remove_liquidity",
-    //                 args!(bucket_id_a, dec!(8389608), dec!(5))
-    //             )
-    //         }
-    //     )
-    //     .call_method(account_component, "deposit_batch", args!(ManifestExpression::EntireWorktop))
-    //     .build();
-    // let receipt = test_runner.execute_manifest_with_max_cost_unit_limit(
-    //     manifest,
-    //     vec![NonFungibleGlobalId::from_public_key(&public_key)]
-    // );
-    // println!("{:?}\n", receipt);
-    // receipt.expect_commit_success();
+    //**************************************************************************************************************************************/
+    println!("Transaction manifest: Remove liquidity\n");
+    //**************************************************************************************************************************************/
+    // Test the `swap` method.
+    let manifest = ManifestBuilder::new()
+        .take_from_worktop_by_ids(
+            &BTreeSet::from_iter([NonFungibleLocalId::integer(3)]),
+            token_a,
+            |continue_transaction, bucket_nfr| {
+                continue_transaction.call_method(
+                    component,
+                    "remove_liquidity",
+                    args!(bucket_nfr, opt_vec)
+                )
+            }
+        )
+        .call_method(account_component, "deposit_batch", args!(ManifestExpression::EntireWorktop))
+        .build();
+    let receipt = test_runner.execute_manifest_with_max_cost_unit_limit(
+        manifest,
+        vec![NonFungibleGlobalId::from_public_key(&public_key)]
+    );
+    println!("{:?}\n", receipt);
+    receipt.expect_commit_success();
     //**************************************************************************************************************************************/
 }
 

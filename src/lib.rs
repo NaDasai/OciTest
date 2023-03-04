@@ -529,7 +529,9 @@ mod ociswap_module {
             &mut self,
             my_lp_nfr: Bucket,
             opt_r_distribution: Option<Vec<(Decimal, Decimal)>>
-        ) -> Bucket {
+        ) -> Vec<Bucket> {
+            let mut all_buckets: Vec<Bucket> = Vec::new();
+
             let lp_nfr = my_lp_nfr.non_fungible::<Lp>();
             let nfr_id = lp_nfr.local_id();
 
@@ -545,18 +547,20 @@ mod ociswap_module {
                         let mut my_b_bin = self.b_bins.get_mut(lp_bin_id).unwrap();
 
                         if *lp_bin_id <= self.active_bin {
-                            my_a_bin.bin_vault.take(
+                            let a_bucket = my_a_bin.bin_vault.take(
                                 (*lp_amount *
                                     self.a_bins.get_mut(lp_bin_id).unwrap().bin_vault.amount()) /
                                     self.id_total[lp_bin_id]
                             );
+                            all_buckets.push(a_bucket);
                         }
                         if *lp_bin_id >= self.active_bin {
-                            my_b_bin.bin_vault.take(
+                            let b_bucket = my_b_bin.bin_vault.take(
                                 (*lp_amount *
                                     self.a_bins.get_mut(lp_bin_id).unwrap().bin_vault.amount()) /
                                     self.id_total[lp_bin_id]
                             );
+                            all_buckets.push(b_bucket);
                         }
                     }
                     nft_data.id_lp.clear();
@@ -628,7 +632,14 @@ mod ociswap_module {
 
             resource_manager.update_non_fungible_data(&nfr_id, nft_data);
 
-            my_lp_nfr
+            // [TEST] To check LP
+            for (lp_bin_id, lp_amount) in &self.id_total {
+                info!("Checking LP after remove.");
+                info!("LP: {},{}", lp_bin_id, lp_amount);
+            }
+
+            all_buckets.push(my_lp_nfr);
+            all_buckets
         }
 
         /// Swaps token A for B, or vice versa.
