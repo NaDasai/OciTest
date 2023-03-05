@@ -530,13 +530,18 @@ mod ociswap_module {
             my_lp_nfr: Bucket,
             opt_r_distribution: Option<Vec<(Decimal, Decimal)>>
         ) -> Vec<Bucket> {
+            info!("[remove_liquidity]: Removing liquidity started.");
             let mut all_buckets: Vec<Bucket> = Vec::new();
+
+            debug!("[remove_liquidity]: Removing liquidity started.");
 
             let lp_nfr = my_lp_nfr.non_fungible::<Lp>();
             let nfr_id = lp_nfr.local_id();
 
             let resource_manager = borrow_resource_manager!(self.lp_nfr_address);
             let mut nft_data: Lp = resource_manager.get_non_fungible_data(&nfr_id);
+
+            debug!("[remove_liquidity]: Distribution started.");
 
             // L * reserves / totalL
 
@@ -547,6 +552,13 @@ mod ociswap_module {
                         let mut my_b_bin = self.b_bins.get_mut(lp_bin_id).unwrap();
 
                         if *lp_bin_id <= self.active_bin {
+                            info!(
+                                "[remove_liquidity]: Removing from A, bin ID {}, with amount {}",
+                                lp_bin_id,
+                                (*lp_amount *
+                                    self.a_bins.get_mut(lp_bin_id).unwrap().bin_vault.amount()) /
+                                    self.id_total[lp_bin_id]
+                            );
                             let a_bucket = my_a_bin.bin_vault.take(
                                 (*lp_amount *
                                     self.a_bins.get_mut(lp_bin_id).unwrap().bin_vault.amount()) /
@@ -555,9 +567,16 @@ mod ociswap_module {
                             all_buckets.push(a_bucket);
                         }
                         if *lp_bin_id >= self.active_bin {
+                            info!(
+                                "[remove_liquidity]: Removing from B, bin ID {}, with amount {}",
+                                lp_bin_id,
+                                (*lp_amount *
+                                    self.b_bins.get_mut(lp_bin_id).unwrap().bin_vault.amount()) /
+                                    self.id_total[lp_bin_id]
+                            );
                             let b_bucket = my_b_bin.bin_vault.take(
                                 (*lp_amount *
-                                    self.a_bins.get_mut(lp_bin_id).unwrap().bin_vault.amount()) /
+                                    self.b_bins.get_mut(lp_bin_id).unwrap().bin_vault.amount()) /
                                     self.id_total[lp_bin_id]
                             );
                             all_buckets.push(b_bucket);
@@ -593,42 +612,6 @@ mod ociswap_module {
                     }
                 }
             }
-
-            // let mut my_a_bin = self.a_bins.get_mut(&bin_id).unwrap();
-            // let mut my_b_bin = self.b_bins.get_mut(&bin_id).unwrap();
-
-            // my_a_bin.bin_vault.take(a_amount);
-            // my_b_bin.bin_vault.take(b_amount);
-
-            // let lp_tokens_address = lp_tokens.resource_address();
-            // let lp_resource_manager = borrow_resource_manager!(lp_tokens_address);
-
-            // // L * reserves / totalL
-            // if self.a_lp_id.get(&lp_tokens_address).is_some() {
-            //     let bin_id = self.a_lp_id.get(&lp_tokens_address).unwrap(); // [Check]
-            //     let bin_price = self.get_price(*bin_id);
-            //     let mut my_a_bin = self.a_bins.get_mut(&bin_id).unwrap();
-            //     let a_amount =
-            //         (lp_tokens.amount() * my_a_bin.bin_vault.amount()) /
-            //         lp_resource_manager.total_supply() /
-            //         bin_price;
-            //     // Burning LP tokens received
-            //     self.lp_badge.authorize(|| {
-            //         lp_tokens.burn();
-            //     });
-            //     my_a_bin.bin_vault.take(a_amount)
-            // } else {
-            //     let bin_id = self.a_lp_id.get(&lp_tokens_address).unwrap();
-            //     let mut my_b_bin = self.b_bins.get_mut(&bin_id).unwrap();
-            //     let b_amount =
-            //         (lp_tokens.amount() * my_b_bin.bin_vault.amount()) /
-            //         lp_resource_manager.total_supply();
-            //     // Burning LP tokens received
-            //     self.lp_badge.authorize(|| {
-            //         lp_tokens.burn();
-            //     });
-            //     my_b_bin.bin_vault.take(b_amount)
-            // } // TODO
 
             resource_manager.update_non_fungible_data(&nfr_id, nft_data);
 

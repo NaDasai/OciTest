@@ -52,6 +52,7 @@ fn test_ociswap() {
     println!("{:?}\n", receipt);
     receipt.expect_commit_success();
     let component = receipt.expect_commit().entity_changes.new_component_addresses[0];
+    let nfr_address = receipt.expect_commit().entity_changes.new_resource_addresses[1];
 
     println!("First transaction manifest: add_liquidity 1\n");
     //**************************************************************************************************************************************/
@@ -195,11 +196,16 @@ fn test_ociswap() {
     //**************************************************************************************************************************************/
     println!("Transaction manifest: Remove liquidity\n");
     //**************************************************************************************************************************************/
-    // Test the `swap` method.
+    // Test the `Remove liquidity` method.
     let manifest = ManifestBuilder::new()
+        .withdraw_from_account_by_ids(
+            account_component,
+            &BTreeSet::from_iter([NonFungibleLocalId::integer(3)]),
+            nfr_address
+        )
         .take_from_worktop_by_ids(
             &BTreeSet::from_iter([NonFungibleLocalId::integer(3)]),
-            token_a,
+            nfr_address,
             |continue_transaction, bucket_nfr| {
                 continue_transaction.call_method(
                     component,
