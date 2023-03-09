@@ -12,6 +12,7 @@ fn test_ociswap() {
     let amount_to_swap = dec!(8);
     let opt_bucket_1: Option<Bucket> = None;
     let opt_bucket_2: Option<Bucket> = None;
+    let opt_bucket_3: Option<Bucket> = None;
     let opt_vec: Option<Bucket> = None;
     // Setup the environment
     //let mut store = TypedInMemorySubstateStore::with_bootstrap();
@@ -53,52 +54,52 @@ fn test_ociswap() {
     let component = receipt.expect_commit().entity_changes.new_component_addresses[0];
     let nfr_address = receipt.expect_commit().entity_changes.new_resource_addresses[1];
 
-    // //**************************************************************************************************************************************/
-    println!("Third transaction manifest: add_liquidity 1\n");
+    println!("First transaction manifest: add_liquidity 1\n");
     //**************************************************************************************************************************************/
     // Test the `add_liquidity` method.
-
-    let mut a_distribution: Vec<(Decimal, Decimal)> = Vec::new();
-    let mut b_distribution: Vec<(Decimal, Decimal)> = Vec::new();
-    a_distribution.push((dec!(8389604), dec!(20)));
-    a_distribution.push((dec!(8389605), dec!(20)));
-    a_distribution.push((dec!(8389606), dec!(20)));
-    a_distribution.push((dec!(8389607), dec!(20)));
-    a_distribution.push((dec!(8389608), dec!(20))); // Active Bin
-    b_distribution.push((dec!(8389608), dec!(8))); // Active Bin
-    b_distribution.push((dec!(8389609), dec!(8)));
-    //a_distribution.push((dec!(8389609), dec!(20))); // Not supposed to add
-    b_distribution.push((dec!(8389610), dec!(8)));
-    b_distribution.push((dec!(8389611), dec!(200))); // More to swap
-    b_distribution.push((dec!(8389611), dec!(8)));
-    b_distribution.push((dec!(8389612), dec!(8)));
-    b_distribution.push((dec!(8389613), dec!(8)));
-    b_distribution.push((dec!(8389614), dec!(8)));
-    b_distribution.push((dec!(8389615), dec!(8)));
-    b_distribution.push((dec!(8389616), dec!(8)));
-    b_distribution.push((dec!(8389617), dec!(8)));
-    b_distribution.push((dec!(8389618), dec!(8)));
-    b_distribution.push((dec!(8389619), dec!(8)));
-    //b_distribution.push((dec!(8389619), dec!(4)));
-
     let manifest = ManifestBuilder::new()
-        .withdraw_from_account_by_amount(account_component, dec!(100), token_a)
-        .withdraw_from_account_by_amount(account_component, dec!(300), token_b)
-        .take_from_worktop_by_amount(dec!(100), token_a, |continue_transaction, bucket_id_a| {
+        .withdraw_from_account_by_amount(account_component, dec!(500), token_a)
+        .withdraw_from_account_by_amount(account_component, dec!(500), token_b)
+        .take_from_worktop_by_amount(dec!(500), token_a, |continue_transaction, bucket_id_a| {
             continue_transaction.take_from_worktop_by_amount(
-                dec!(300),
+                dec!(500),
                 token_b,
                 |continue_transaction2, bucket_id_b| {
                     continue_transaction2.call_method(
                         component,
                         "add_liquidity",
-                        args!(
-                            bucket_id_a,
-                            a_distribution,
-                            bucket_id_b,
-                            b_distribution,
-                            opt_bucket_1
-                        )
+                        args!(bucket_id_a, bucket_id_b, dec!("19.5"), dec!("20.5"), opt_bucket_1)
+                    )
+                }
+            )
+        })
+
+        .call_method(account_component, "deposit_batch", args!(ManifestExpression::EntireWorktop))
+        .build();
+    let receipt = test_runner.execute_manifest_with_max_cost_unit_limit(
+        manifest,
+        vec![NonFungibleGlobalId::from_public_key(&public_key)]
+    );
+
+    println!("{:?}\n", receipt);
+    receipt.expect_commit_success();
+
+    // //**************************************************************************************************************************************/
+    println!("Second transaction manifest: add_liquidity 2\n");
+    //**************************************************************************************************************************************/
+    // Test the `add_liquidity` method.
+    let manifest = ManifestBuilder::new()
+        .withdraw_from_account_by_amount(account_component, dec!(100), token_a)
+        .withdraw_from_account_by_amount(account_component, dec!(100), token_b)
+        .take_from_worktop_by_amount(dec!(100), token_a, |continue_transaction, bucket_id_a| {
+            continue_transaction.take_from_worktop_by_amount(
+                dec!(100),
+                token_b,
+                |continue_transaction2, bucket_id_b| {
+                    continue_transaction2.call_method(
+                        component,
+                        "add_liquidity",
+                        args!(bucket_id_a, bucket_id_b, dec!("19.8"), dec!("20.7"), opt_bucket_2)
                     )
                 }
             )
@@ -115,50 +116,49 @@ fn test_ociswap() {
     // //**************************************************************************************************************************************/
 
     // //**************************************************************************************************************************************/
-    println!("Third transaction manifest: add_liquidity 2\n");
+    println!("Third transaction manifest: add_liquidity 3\n");
     //**************************************************************************************************************************************/
     // Test the `add_liquidity` method.
 
-    let mut a_distribution_2: Vec<(Decimal, Decimal)> = Vec::new();
-    let mut b_distribution_2: Vec<(Decimal, Decimal)> = Vec::new();
-    a_distribution_2.push((dec!(8389604), dec!(20)));
-    a_distribution_2.push((dec!(8389605), dec!(20)));
-    a_distribution_2.push((dec!(8389606), dec!(20)));
-    a_distribution_2.push((dec!(8389607), dec!(20)));
-    a_distribution_2.push((dec!(8389608), dec!(20))); // Active Bin
-    b_distribution_2.push((dec!(8389608), dec!(8))); // Active Bin
-    b_distribution_2.push((dec!(8389609), dec!(8)));
-    //a_distribution_2.push((dec!(8389609), dec!(20))); // Not supposed to add
-    b_distribution_2.push((dec!(8389610), dec!(8)));
-    b_distribution_2.push((dec!(8389611), dec!(200))); // More to swap
-    b_distribution_2.push((dec!(8389611), dec!(8)));
-    b_distribution_2.push((dec!(8389612), dec!(8)));
-    b_distribution_2.push((dec!(8389613), dec!(8)));
-    b_distribution_2.push((dec!(8389614), dec!(8)));
-    b_distribution_2.push((dec!(8389615), dec!(8)));
-    b_distribution_2.push((dec!(8389616), dec!(8)));
-    b_distribution_2.push((dec!(8389617), dec!(8)));
-    b_distribution_2.push((dec!(8389618), dec!(8)));
-    b_distribution_2.push((dec!(8389619), dec!(8)));
+    let mut a_distribution: Vec<(Decimal, Decimal)> = Vec::new();
+    let mut b_distribution: Vec<(Decimal, Decimal)> = Vec::new();
+    a_distribution.push((dec!(8389604), dec!(20)));
+    a_distribution.push((dec!(8389605), dec!(20)));
+    a_distribution.push((dec!(8389606), dec!(20)));
+    a_distribution.push((dec!(8389607), dec!(20)));
+    a_distribution.push((dec!(8389608), dec!(20))); // Active Bin
+    b_distribution.push((dec!(8389608), dec!(8))); // Active Bin
+    b_distribution.push((dec!(8389609), dec!(8)));
+    //a_distribution.push((dec!(8389609), dec!(20))); // Not supposed to add
+    b_distribution.push((dec!(8389610), dec!(8)));
+    b_distribution.push((dec!(8389611), dec!(8)));
+    b_distribution.push((dec!(8389612), dec!(8)));
+    b_distribution.push((dec!(8389613), dec!(8)));
+    b_distribution.push((dec!(8389614), dec!(8)));
+    b_distribution.push((dec!(8389615), dec!(8)));
+    b_distribution.push((dec!(8389616), dec!(8)));
+    b_distribution.push((dec!(8389617), dec!(8)));
+    b_distribution.push((dec!(8389618), dec!(8)));
+    b_distribution.push((dec!(8389619), dec!(8)));
     //b_distribution.push((dec!(8389619), dec!(4)));
 
     let manifest = ManifestBuilder::new()
         .withdraw_from_account_by_amount(account_component, dec!(100), token_a)
-        .withdraw_from_account_by_amount(account_component, dec!(300), token_b)
+        .withdraw_from_account_by_amount(account_component, dec!(100), token_b)
         .take_from_worktop_by_amount(dec!(100), token_a, |continue_transaction, bucket_id_a| {
             continue_transaction.take_from_worktop_by_amount(
-                dec!(300),
+                dec!(100),
                 token_b,
                 |continue_transaction2, bucket_id_b| {
                     continue_transaction2.call_method(
                         component,
-                        "add_liquidity",
+                        "add_specific_liquidity",
                         args!(
                             bucket_id_a,
-                            a_distribution_2,
+                            a_distribution,
                             bucket_id_b,
-                            b_distribution_2,
-                            opt_bucket_2
+                            b_distribution,
+                            opt_bucket_3
                         )
                     )
                 }
@@ -200,11 +200,11 @@ fn test_ociswap() {
     let manifest = ManifestBuilder::new()
         .withdraw_from_account_by_ids(
             account_component,
-            &BTreeSet::from_iter([NonFungibleLocalId::integer(2)]),
+            &BTreeSet::from_iter([NonFungibleLocalId::integer(3)]),
             nfr_address
         )
         .take_from_worktop_by_ids(
-            &BTreeSet::from_iter([NonFungibleLocalId::integer(2)]),
+            &BTreeSet::from_iter([NonFungibleLocalId::integer(3)]),
             nfr_address,
             |continue_transaction, bucket_nfr| {
                 continue_transaction.call_method(

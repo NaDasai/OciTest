@@ -885,6 +885,9 @@ let id = position_nfr.local_id()
         // Check reserves/totalL
 
         // Add liquidity, create both A and B bin.
+        // Delta Neutral
+
+        // Swap quand plus rien doit sortir!!
 
 
 
