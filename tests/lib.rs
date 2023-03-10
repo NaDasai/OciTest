@@ -224,39 +224,39 @@ fn test_ociswap() {
     receipt.expect_commit_success();
     //**************************************************************************************************************************************/
     // //**************************************************************************************************************************************/
-    // println!("Transaction manifest: Remove liquidity for one Bin\n");
-    // //**************************************************************************************************************************************/
-    // // Test the `Remove liquidity` method.
+    println!("Transaction manifest: Remove liquidity for one Bin\n");
+    //**************************************************************************************************************************************/
+    // Test the `Remove liquidity` method.
 
-    // let mut r_distribution: Vec<(Decimal, Decimal)> = Vec::new();
-    // r_distribution.push((dec!(8389608), dec!(300)));
-    // let opt_vec_one_bin: Option<Vec<(Decimal, Decimal)>> = Some(r_distribution);
+    let mut r_distribution: Vec<(Decimal, Decimal)> = Vec::new();
+    r_distribution.push((dec!(8389607), dec!(1)));
+    let opt_vec_one_bin: Option<Vec<(Decimal, Decimal)>> = Some(r_distribution);
 
-    // let manifest = ManifestBuilder::new()
-    //     .withdraw_from_account_by_ids(
-    //         account_component,
-    //         &BTreeSet::from_iter([NonFungibleLocalId::integer(3)]),
-    //         nfr_address
-    //     )
-    //     .take_from_worktop_by_ids(
-    //         &BTreeSet::from_iter([NonFungibleLocalId::integer(3)]),
-    //         nfr_address,
-    //         |continue_transaction, bucket_nfr| {
-    //             continue_transaction.call_method(
-    //                 component,
-    //                 "remove_liquidity",
-    //                 args!(bucket_nfr, opt_vec_one_bin)
-    //             )
-    //         }
-    //     )
-    //     .call_method(account_component, "deposit_batch", args!(ManifestExpression::EntireWorktop))
-    //     .build();
-    // let receipt = test_runner.execute_manifest_with_max_cost_unit_limit(
-    //     manifest,
-    //     vec![NonFungibleGlobalId::from_public_key(&public_key)]
-    // );
-    // println!("{:?}\n", receipt);
-    // receipt.expect_commit_success();
+    let manifest = ManifestBuilder::new()
+        .withdraw_from_account_by_ids(
+            account_component,
+            &BTreeSet::from_iter([NonFungibleLocalId::integer(1)]),
+            nfr_address
+        )
+        .take_from_worktop_by_ids(
+            &BTreeSet::from_iter([NonFungibleLocalId::integer(1)]),
+            nfr_address,
+            |continue_transaction, bucket_nfr| {
+                continue_transaction.call_method(
+                    component,
+                    "remove_liquidity",
+                    args!(bucket_nfr, opt_vec_one_bin)
+                )
+            }
+        )
+        .call_method(account_component, "deposit_batch", args!(ManifestExpression::EntireWorktop))
+        .build();
+    let receipt = test_runner.execute_manifest_with_max_cost_unit_limit(
+        manifest,
+        vec![NonFungibleGlobalId::from_public_key(&public_key)]
+    );
+    println!("{:?}\n", receipt);
+    receipt.expect_commit_success();
     //**************************************************************************************************************************************/
 }
 

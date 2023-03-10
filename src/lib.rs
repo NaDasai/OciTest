@@ -196,14 +196,29 @@ mod ociswap_module {
 
                             if nft_data.id_lp.contains_key(&bin_id) {
                                 *nft_data.id_lp.get_mut(&bin_id).unwrap() += *amount * price_of_bin;
+                                info!(
+                                    "[add_liquidity]: Before insert new amount liquidity amount: {}",
+                                    self.id_total[bin_id]
+                                );
                                 self.id_total.insert(
                                     *bin_id,
                                     self.id_total[bin_id] + *amount * price_of_bin
                                 );
+                                info!(
+                                    "[add_liquidity]: After insert new amount liquidity amount: {}",
+                                    self.id_total[bin_id]
+                                );
                                 //*self.id_total.get_mut(bin_id).unwrap() += *amount * price_of_bin;
                             } else {
                                 nft_data.id_lp.insert(*bin_id, *amount * price_of_bin);
-                                self.id_total.insert(*bin_id, *amount * price_of_bin);
+                                if self.id_total.contains_key(&bin_id) {
+                                    self.id_total.insert(
+                                        *bin_id,
+                                        self.id_total[bin_id] + *amount * price_of_bin
+                                    );
+                                } else {
+                                    self.id_total.insert(*bin_id, *amount * price_of_bin);
+                                }
                             }
                         } else {
                             info!("[add_specific_liquidity]: Didn't add: {},{} A", bin_id, amount);
@@ -213,7 +228,15 @@ mod ociswap_module {
                         // Bin found, update.
                         if *bin_id <= self.active_bin && a_tokens.amount() >= *amount {
                             let mut my_bin = self.a_bins.get_mut(&*bin_id).unwrap();
+                            info!(
+                                "[add_specific_liquidity]: My bin A amount BEFORE add: {}",
+                                my_bin.bin_vault.amount()
+                            );
                             my_bin.bin_vault.put(a_tokens.take(*amount));
+                            info!(
+                                "[add_specific_liquidity]: My bin A amount AFTER add: {}",
+                                my_bin.bin_vault.amount()
+                            );
 
                             info!(
                                 "[add_specific_liquidity]: {} Old A bin id: {}",
@@ -227,13 +250,28 @@ mod ociswap_module {
 
                             if nft_data.id_lp.contains_key(&bin_id) {
                                 *nft_data.id_lp.get_mut(&bin_id).unwrap() += *amount * price_of_bin;
+                                info!(
+                                    "[add_liquidity]: Before insert new amount liquidity amount: {}",
+                                    self.id_total[bin_id]
+                                );
                                 self.id_total.insert(
                                     *bin_id,
                                     self.id_total[bin_id] + *amount * price_of_bin
                                 );
+                                info!(
+                                    "[add_liquidity]: After insert new amount liquidity amount: {}",
+                                    self.id_total[bin_id]
+                                );
                             } else {
                                 nft_data.id_lp.insert(*bin_id, *amount * price_of_bin);
-                                self.id_total.insert(*bin_id, *amount * price_of_bin);
+                                if self.id_total.contains_key(&bin_id) {
+                                    self.id_total.insert(
+                                        *bin_id,
+                                        self.id_total[bin_id] + *amount * price_of_bin
+                                    );
+                                } else {
+                                    self.id_total.insert(*bin_id, *amount * price_of_bin);
+                                }
                             }
                         } else {
                             info!("[add_specific_liquidity]: Didn't add: {},{} A", bin_id, amount);
@@ -268,7 +306,11 @@ mod ociswap_module {
                                 self.id_total.insert(*bin_id, self.id_total[bin_id] + *amount);
                             } else {
                                 nft_data.id_lp.insert(*bin_id, *amount);
-                                self.id_total.insert(*bin_id, *amount);
+                                if self.id_total.contains_key(&bin_id) {
+                                    self.id_total.insert(*bin_id, self.id_total[bin_id] + *amount);
+                                } else {
+                                    self.id_total.insert(*bin_id, *amount);
+                                }
                             }
                         } else {
                             info!("[add_specific_liquidity]: Didn't add: {},{} B", bin_id, amount);
@@ -294,7 +336,11 @@ mod ociswap_module {
                                 self.id_total.insert(*bin_id, self.id_total[bin_id] + *amount);
                             } else {
                                 nft_data.id_lp.insert(*bin_id, *amount);
-                                self.id_total.insert(*bin_id, *amount);
+                                if self.id_total.contains_key(&bin_id) {
+                                    self.id_total.insert(*bin_id, self.id_total[bin_id] + *amount);
+                                } else {
+                                    self.id_total.insert(*bin_id, *amount);
+                                }
                             }
                         } else {
                             info!("[add_specific_liquidity]: Didn't add: {},{} B", bin_id, amount);
@@ -344,14 +390,21 @@ mod ociswap_module {
             match opt_r_distribution {
                 None => {
                     for (lp_bin_id, lp_amount) in &nft_data.id_lp {
+                        // Before and in active Bin (Token A)
                         if *lp_bin_id <= self.active_bin {
                             let mut my_a_bin = self.a_bins.get_mut(lp_bin_id).unwrap();
                             info!(
-                                "[remove_liquidity]: Removing from A, bin ID {}, with amount {}",
+                                "[remove_liquidity]: Removing from A, bin ID {}, with amount {}\n
+                                    Amount L = {}\n
+                                    Reserve in A Bin = {}\n
+                                    Total Liquidity = {}\n",
                                 lp_bin_id,
                                 (*lp_amount *
                                     self.a_bins.get_mut(lp_bin_id).unwrap().bin_vault.amount()) /
-                                    self.id_total[lp_bin_id]
+                                    self.id_total[lp_bin_id],
+                                *lp_amount,
+                                self.a_bins.get_mut(lp_bin_id).unwrap().bin_vault.amount(),
+                                self.id_total[lp_bin_id]
                             );
                             let a_bucket = my_a_bin.bin_vault.take(
                                 (*lp_amount *
@@ -359,7 +412,19 @@ mod ociswap_module {
                                     self.id_total[lp_bin_id]
                             );
                             all_buckets.push(a_bucket);
+                            // Remove liquidity from total
+                            self.id_total.insert(
+                                *lp_bin_id,
+                                self.id_total[lp_bin_id] -
+                                    (*lp_amount *
+                                        self.a_bins
+                                            .get_mut(lp_bin_id)
+                                            .unwrap()
+                                            .bin_vault.amount()) /
+                                        self.id_total[lp_bin_id]
+                            );
                         }
+                        // After and in active Bin (Token B)
                         if *lp_bin_id >= self.active_bin {
                             let mut my_b_bin = self.b_bins.get_mut(lp_bin_id).unwrap();
                             info!(
@@ -375,6 +440,16 @@ mod ociswap_module {
                                     self.id_total[lp_bin_id]
                             );
                             all_buckets.push(b_bucket);
+                            self.id_total.insert(
+                                *lp_bin_id,
+                                self.id_total[lp_bin_id] -
+                                    (*lp_amount *
+                                        self.b_bins
+                                            .get_mut(lp_bin_id)
+                                            .unwrap()
+                                            .bin_vault.amount()) /
+                                        self.id_total[lp_bin_id]
+                            );
                         }
                     }
                     nft_data.id_lp.clear();
@@ -399,21 +474,44 @@ mod ociswap_module {
                             if *bin_id <= self.active_bin {
                                 let mut my_a_bin = self.a_bins.get_mut(bin_id).unwrap();
                                 info!(
-                                    "[remove_liquidity]: Removing from A, bin ID {}, with amount {}",
+                                    "[remove_liquidity]: Amount in A Bin: {}",
+                                    my_a_bin.bin_vault.amount()
+                                );
+                                info!(
+                                    "[remove_liquidity]: Amount in A Bin in self: {}",
+                                    self.a_bins.get_mut(bin_id).unwrap().bin_vault.amount()
+                                );
+                                info!(
+                                    "[remove_liquidity]: Removing from A, bin ID {}, with amount {}\n
+                                    Amount L = {}\n
+                                    Reserve in A Bin = {}\n
+                                    Total Liquidity = {}\n",
                                     bin_id,
                                     (*amount *
                                         self.a_bins.get_mut(bin_id).unwrap().bin_vault.amount()) /
-                                        self.id_total[bin_id]
+                                        self.id_total[bin_id],
+                                    *amount,
+                                    self.a_bins.get_mut(bin_id).unwrap().bin_vault.amount(),
+                                    self.id_total[bin_id]
                                 );
                                 let a_bucket = my_a_bin.bin_vault.take(
                                     (*amount *
                                         self.a_bins.get_mut(bin_id).unwrap().bin_vault.amount()) /
                                         self.id_total[bin_id]
                                 );
+                                // Check amount A token given back
+                                info!(
+                                    "[remove_liquidity]: Giving back {} A token",
+                                    a_bucket.amount()
+                                );
                                 all_buckets.push(a_bucket);
                             }
                             if *bin_id >= self.active_bin {
                                 let mut my_b_bin = self.b_bins.get_mut(bin_id).unwrap();
+                                info!(
+                                    "[remove_liquidity]: Amount in B Bin: {}",
+                                    my_b_bin.bin_vault.amount()
+                                );
                                 info!(
                                     "[remove_liquidity]: Removing from B, bin ID {}, with amount {}",
                                     bin_id,
@@ -426,6 +524,11 @@ mod ociswap_module {
                                         self.b_bins.get_mut(bin_id).unwrap().bin_vault.amount()) /
                                         self.id_total[bin_id]
                                 );
+                                // Check amount B token given back
+                                info!(
+                                    "[remove_liquidity]: Giving back {} B token",
+                                    b_bucket.amount()
+                                );
                                 all_buckets.push(b_bucket);
                             }
 
@@ -437,6 +540,8 @@ mod ociswap_module {
                                 bin_id,
                                 *nft_data.id_lp.get_mut(&bin_id).unwrap()
                             );
+                        } else {
+                            info!("[remove_liquidity]: Amount too big!");
                         }
                     }
                 }

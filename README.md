@@ -888,8 +888,16 @@ let id = position_nfr.local_id()
         // Delta Neutral
 
         // Swap quand plus rien doit sortir!!
+        // Can we put Bin in KeyValueStore? When we get we get the Bin or copy?
 
+        `scrypto::component::KeyValueStore<scrypto::math::Decimal, Bin>` is not an iterator
+        the trait `Iterator` is not implemented for `scrypto::component::KeyValueStore<scrypto::math::Decimal, Bin>`
+        required for `scrypto::component::KeyValueStore<scrypto::math::Decimal, Bin>` to implement 
 
+        // Problème dans remove all liquidity. (vérifier formule)
+        // Revoir Swap
+
+        ? Transaction Status: COMMITTED FAILURE: CallFrameError(RENodeNotVisible(Vault([41, 68, 98, 157, 56, 192, 204, 42, 56, 74, 92, 175, 184, 50, 243, 247, 196, 148, 151, 221, 208, 76, 104, 98, 86, 232, 217, 213, 175, 28, 121, 181, 16, 0, 0, 0])))
 
 
 
