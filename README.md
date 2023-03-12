@@ -899,6 +899,8 @@ let id = position_nfr.local_id()
 
         ? Transaction Status: COMMITTED FAILURE: CallFrameError(RENodeNotVisible(Vault([41, 68, 98, 157, 56, 192, 204, 42, 56, 74, 92, 175, 184, 50, 243, 247, 196, 148, 151, 221, 208, 76, 104, 98, 86, 232, 217, 213, 175, 28, 121, 181, 16, 0, 0, 0])))
 
+        // Add A and B tokens addresses to LP NFR
+
 
 
 

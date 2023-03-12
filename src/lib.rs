@@ -26,6 +26,7 @@ impl Bin {
 pub struct Lp {
     #[mutable]
     id_lp: HashMap<Decimal, Decimal>,
+    // [TODO] add A and B Token addresses to check in remove
 }
 
 #[blueprint]
@@ -79,12 +80,14 @@ mod ociswap_module {
                 "[Pool Creation]: Liquidity pools may only be created between two different tokens."
             );
 
-            // Instantiate our LP token
+            // Instantiate our LP NFR
+            // Badge
             let lp_badge = ResourceBuilder::new_fungible()
                 .divisibility(DIVISIBILITY_NONE)
                 .metadata("name", "LP Token Mint Auth")
                 .mint_initial_supply(1);
 
+            // NFR
             let nfr_address = ResourceBuilder::new_integer_non_fungible()
                 .metadata("name", "LP NFT")
                 .metadata("description", "This is an NFT provided to each liquidity provider")
@@ -92,6 +95,7 @@ mod ociswap_module {
                 .updateable_non_fungible_data(AccessRule::AllowAll, LOCKED)
                 .create_with_no_initial_supply();
 
+            // Calculate active Bin
             let mut active_bin = price.log() / (dec!(1) + bin_step).log() + dec!(2).powi(23);
             active_bin = Decimal::floor(&active_bin);
 
@@ -120,8 +124,12 @@ mod ociswap_module {
             ociswap.globalize()
         }
 
-        /// Adds liquidity to this pool and return the LP tokens representing pool shares
-        /// along with any remainder. [Check] No remainer for LB
+        /// Adds liquidity to this pool and return the LP NFR representing pool shares
+        // a_tokens         Tokens A that will be added
+        // a_distribution   Token A distribution in the A Bins Vec<(A Bin ID, Amount of B to add)>
+        // b_tokens         Tokens B that will be added
+        // b_distribution   Token B distribution in the B Bins Vec<(B Bin ID, Amount of B to add)
+        // opt_lp_nfr       LP NFR to track the LP of the user
         pub fn add_liquidity(
             &mut self,
             mut a_tokens: Bucket,
@@ -132,7 +140,10 @@ mod ociswap_module {
         ) -> Vec<Bucket> {
             let mut all_buckets: Vec<Bucket> = Vec::new();
 
-            // We are checking here if we have an NFR or do we have to create one.
+            assert!(a_tokens.resource_address() == self.a_token_address, "Not the right A Token");
+            assert!(b_tokens.resource_address() == self.b_token_address, "Not the right B Token");
+
+            // We are checking here if we have an NFR or do we have to create one for the user.
             let my_lp_nfr = match opt_lp_nfr {
                 // No NFR, create new one to user.
                 None => {
@@ -140,8 +151,10 @@ mod ociswap_module {
                         id_lp: HashMap::new(),
                     };
 
+                    // To track the number of NFR
                     self.number_of_nfr = self.number_of_nfr + 1;
 
+                    // Minting the NFR
                     self.lp_badge.authorize(|| {
                         borrow_resource_manager!(self.lp_nfr_address).mint_non_fungible(
                             // The NFT id
@@ -151,11 +164,11 @@ mod ociswap_module {
                         )
                     })
                 }
-                // We just get the NFR provided.
+                // We just get the NFR provided by the user.
                 Some(lp_nfr_bucket) => { lp_nfr_bucket }
             };
 
-            // We get the NFR
+            // We get the NFR from the Bucket
             let lp_nfr = my_lp_nfr.non_fungible::<Lp>();
             // And its ID
             let nfr_id = lp_nfr.local_id();
@@ -167,18 +180,21 @@ mod ociswap_module {
             debug!("[add_specific_liquidity]: Active bin: {}", self.active_bin);
 
             // We add Token A from A Distribution
-            for i in &a_distribution {
+            for i_a in &a_distribution {
                 // We get the Bin ID and the Amount for that Bin.
-                let (bin_id, amount) = i;
+                // (Bin ID, A amount in Bin)
+                let (bin_id, amount) = i_a;
 
-                // Price is calculated to the amount of LP we give back
+                // Price is calculated to define the amount of LP
                 let price_of_bin: Decimal = self.get_price(*bin_id);
 
                 // Bins are created when needed.
+                // Checking in b_bins is the same since we create both at the same time
                 match self.a_bins.get(bin_id) {
                     // No Bin, create one.
                     None => {
                         if *bin_id <= self.active_bin && a_tokens.amount() >= *amount {
+                            // New A Bin
                             let new_bin = Bin::new(
                                 *bin_id,
                                 Vault::with_bucket(a_tokens.take(*amount))
@@ -189,11 +205,16 @@ mod ociswap_module {
                                 "[add_specific_liquidity]: Bucket A amount left: {}",
                                 a_tokens.amount()
                             );
+                            // Insert Bin in list of A Bins
                             self.a_bins.insert(*bin_id, new_bin);
-                            // Add empty opposite Bin.
+
+                            // Add empty B Bin
                             let other_bin = Bin::new(*bin_id, Vault::new(self.b_token_address));
+                            // Insert Bin in list of B Bins
                             self.b_bins.insert(*bin_id, other_bin);
 
+                            // Update NFR metadata
+                            // Check if we already added to that Bin
                             if nft_data.id_lp.contains_key(&bin_id) {
                                 *nft_data.id_lp.get_mut(&bin_id).unwrap() += *amount * price_of_bin;
                                 info!(
@@ -210,7 +231,10 @@ mod ociswap_module {
                                 );
                                 //*self.id_total.get_mut(bin_id).unwrap() += *amount * price_of_bin;
                             } else {
+                                // We are adding in new Bin
                                 nft_data.id_lp.insert(*bin_id, *amount * price_of_bin);
+                                // Adding in Total liquidity
+                                // Checking if any user added to that Bin before
                                 if self.id_total.contains_key(&bin_id) {
                                     self.id_total.insert(
                                         *bin_id,
@@ -221,17 +245,21 @@ mod ociswap_module {
                                 }
                             }
                         } else {
+                            // We are in here if we added in a Bin after active bin
+                            // or if the amount provided is less than the one we are adding in the distribution
                             info!("[add_specific_liquidity]: Didn't add: {},{} A", bin_id, amount);
                         }
                     }
                     Some(_) => {
-                        // Bin found, update.
+                        // Bin found.
                         if *bin_id <= self.active_bin && a_tokens.amount() >= *amount {
+                            // Getting the existing A Bin
                             let mut my_bin = self.a_bins.get_mut(&*bin_id).unwrap();
                             info!(
                                 "[add_specific_liquidity]: My bin A amount BEFORE add: {}",
                                 my_bin.bin_vault.amount()
                             );
+                            // Adding the amount in the A Bin
                             my_bin.bin_vault.put(a_tokens.take(*amount));
                             info!(
                                 "[add_specific_liquidity]: My bin A amount AFTER add: {}",
@@ -248,6 +276,8 @@ mod ociswap_module {
                                 a_tokens.amount()
                             );
 
+                            // Update NFR metadata
+                            // Check if we already added to that Bin
                             if nft_data.id_lp.contains_key(&bin_id) {
                                 *nft_data.id_lp.get_mut(&bin_id).unwrap() += *amount * price_of_bin;
                                 info!(
@@ -263,6 +293,7 @@ mod ociswap_module {
                                     self.id_total[bin_id]
                                 );
                             } else {
+                                // We are adding a new Bin in NFR
                                 nft_data.id_lp.insert(*bin_id, *amount * price_of_bin);
                                 if self.id_total.contains_key(&bin_id) {
                                     self.id_total.insert(
@@ -280,12 +311,14 @@ mod ociswap_module {
                 }
             }
 
-            for i in &b_distribution {
-                let (bin_id, amount) = i;
+            // (Bin ID, B amount in Bin)
+            for i_b in &b_distribution {
+                let (bin_id, amount) = i_b;
 
                 match self.b_bins.get(bin_id) {
                     None => {
                         if *bin_id >= self.active_bin && b_tokens.amount() >= *amount {
+                            // New B Bin
                             let new_bin = Bin::new(
                                 *bin_id,
                                 Vault::with_bucket(b_tokens.take(*amount))
@@ -296,8 +329,10 @@ mod ociswap_module {
                                 "[add_specific_liquidity]: Bucket B amount left: {}",
                                 b_tokens.amount()
                             );
+                            // Insert Bin in list of B Bins
                             self.b_bins.insert(*bin_id, new_bin);
-                            // Add empty opposite Bin.
+
+                            // Add empty A Bin
                             let other_bin = Bin::new(*bin_id, Vault::new(self.a_token_address));
                             self.a_bins.insert(*bin_id, other_bin);
 
@@ -335,6 +370,7 @@ mod ociswap_module {
                                 *nft_data.id_lp.get_mut(&bin_id).unwrap() += *amount;
                                 self.id_total.insert(*bin_id, self.id_total[bin_id] + *amount);
                             } else {
+                                // We are adding a new Bin in NFR
                                 nft_data.id_lp.insert(*bin_id, *amount);
                                 if self.id_total.contains_key(&bin_id) {
                                     self.id_total.insert(*bin_id, self.id_total[bin_id] + *amount);
@@ -354,8 +390,10 @@ mod ociswap_module {
                 info!("LP: {},{}", lp_bin_id, lp_amount);
             }
 
+            // Updating the NFR metadata
             resource_manager.update_non_fungible_data(&nfr_id, nft_data);
 
+            // Returning buckets
             all_buckets.push(a_tokens);
             all_buckets.push(b_tokens);
             all_buckets.push(my_lp_nfr);
@@ -364,6 +402,8 @@ mod ociswap_module {
         }
 
         /// Removes liquidity from this pool.
+        // my_lp_nfr            Bucket containing the NFR
+        // opt_r_distribution   L distribution to withdraw from Bins Vec<(B Bin ID, Amount of L to withdraw)
         pub fn remove_liquidity(
             &mut self,
             my_lp_nfr: Bucket,
@@ -373,25 +413,30 @@ mod ociswap_module {
 
             debug!("[remove_liquidity]: Removing liquidity started.");
 
+            // We get the NFR from the Bucket
             let lp_nfr = my_lp_nfr.non_fungible::<Lp>();
+            // And its ID
             let nfr_id = lp_nfr.local_id();
 
             let resource_manager = borrow_resource_manager!(self.lp_nfr_address);
+            // We get the data of the NFR
             let mut nft_data: Lp = resource_manager.get_non_fungible_data(&nfr_id);
 
             debug!("[remove_liquidity]: Active Bin: {}", self.active_bin);
 
+            // [TEST] Check the LP metadata before remove
             for (lp_bin_id, lp_amount) in &nft_data.id_lp {
                 info!("LP before remove: Bin {}, Amount {}", lp_bin_id, lp_amount);
             }
 
-            // L * reserves / totalL
-
             match opt_r_distribution {
+                // Here we are not specifing the Bins and the amounts so we remove eveything
                 None => {
+                    // We'll go through all the Bins of the NFR
                     for (lp_bin_id, lp_amount) in &nft_data.id_lp {
                         // Before and in active Bin (Token A)
                         if *lp_bin_id <= self.active_bin {
+                            // Get A Bin
                             let mut my_a_bin = self.a_bins.get_mut(lp_bin_id).unwrap();
                             info!(
                                 "[remove_liquidity]: Removing from A, bin ID {}, with amount {}\n
@@ -406,6 +451,8 @@ mod ociswap_module {
                                 self.a_bins.get_mut(lp_bin_id).unwrap().bin_vault.amount(),
                                 self.id_total[lp_bin_id]
                             );
+                            // Get A tokens
+                            // L * reserves / totalL
                             let a_bucket = my_a_bin.bin_vault.take(
                                 (*lp_amount *
                                     self.a_bins.get_mut(lp_bin_id).unwrap().bin_vault.amount()) /
@@ -434,6 +481,7 @@ mod ociswap_module {
                                     self.b_bins.get_mut(lp_bin_id).unwrap().bin_vault.amount()) /
                                     self.id_total[lp_bin_id]
                             );
+                            // L * reserves / totalL
                             let b_bucket = my_b_bin.bin_vault.take(
                                 (*lp_amount *
                                     self.b_bins.get_mut(lp_bin_id).unwrap().bin_vault.amount()) /
@@ -454,10 +502,11 @@ mod ociswap_module {
                     }
                     nft_data.id_lp.clear();
                 }
-                // Specific Bin and amount
+                // User defined specific Bins and amounts
                 Some(r_distribution) => {
-                    for i in &r_distribution {
-                        let (bin_id, amount) = i;
+                    for l_i in &r_distribution {
+                        // (Bin ID, L amount in Bin)
+                        let (bin_id, amount) = l_i;
 
                         info!(
                             "[remove_liquidity]: Before remove. NonFungibleLocalId {}, bin ID {}, with amount {}",
@@ -466,11 +515,12 @@ mod ociswap_module {
                             *nft_data.id_lp.get_mut(&bin_id).unwrap()
                         );
 
-                        // Check if Bin and amount exists
+                        // Check if Bin and amount are valid
                         if
                             nft_data.id_lp.contains_key(&bin_id) &&
                             nft_data.id_lp[bin_id] >= *amount
                         {
+                            // Before and in active Bin (Token A)
                             if *bin_id <= self.active_bin {
                                 let mut my_a_bin = self.a_bins.get_mut(bin_id).unwrap();
                                 info!(
@@ -494,6 +544,7 @@ mod ociswap_module {
                                     self.a_bins.get_mut(bin_id).unwrap().bin_vault.amount(),
                                     self.id_total[bin_id]
                                 );
+                                // {A/B} = L * reserve{A/B} / totalL
                                 let a_bucket = my_a_bin.bin_vault.take(
                                     (*amount *
                                         self.a_bins.get_mut(bin_id).unwrap().bin_vault.amount()) /
@@ -506,6 +557,7 @@ mod ociswap_module {
                                 );
                                 all_buckets.push(a_bucket);
                             }
+                            // After and in active Bin (Token B)
                             if *bin_id >= self.active_bin {
                                 let mut my_b_bin = self.b_bins.get_mut(bin_id).unwrap();
                                 info!(
@@ -519,6 +571,7 @@ mod ociswap_module {
                                         self.b_bins.get_mut(bin_id).unwrap().bin_vault.amount()) /
                                         self.id_total[bin_id]
                                 );
+                                // {A/B} = L * reserve{A/B} / totalL
                                 let b_bucket = my_b_bin.bin_vault.take(
                                     (*amount *
                                         self.b_bins.get_mut(bin_id).unwrap().bin_vault.amount()) /
@@ -547,12 +600,15 @@ mod ociswap_module {
                 }
             }
 
+            // [TEST] Check the LP metadata after remove
             for (lp_bin_id, lp_amount) in &nft_data.id_lp {
                 info!("LP after remove: Bin {}, Amount {}", lp_bin_id, lp_amount);
             }
 
+            // Updating the NFR metadata
             resource_manager.update_non_fungible_data(&nfr_id, nft_data);
 
+            // Returning buckets
             all_buckets.push(my_lp_nfr);
             all_buckets
         }
