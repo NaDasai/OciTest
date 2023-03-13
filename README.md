@@ -900,6 +900,15 @@ let id = position_nfr.local_id()
         ? Transaction Status: COMMITTED FAILURE: CallFrameError(RENodeNotVisible(Vault([41, 68, 98, 157, 56, 192, 204, 42, 56, 74, 92, 175, 184, 50, 243, 247, 196, 148, 151, 221, 208, 76, 104, 98, 86, 232, 217, 213, 175, 28, 121, 181, 16, 0, 0, 0])))
 
         // Add A and B tokens addresses to LP NFR
+        // 159.96427698762925408 not 160
+
+        // Recursive function not working with swap
+        //self.swap(my_b_bin.bin_vault.take(my_b_bin.bin_vault.amount())); (after new B amount)
+        // Voir l'autre Swap
+        // Vérifier reste
+        // Vérifier avant activeBin = activeBin + 1 si next Bin existe
+        // Qu'est ce qui se passe quand on a plus de token B? Active Bin devient quoi?
+        // Vérifier où rajouter message plus de B
 
 
 
