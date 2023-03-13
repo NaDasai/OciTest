@@ -176,13 +176,31 @@ fn test_ociswap() {
     // //**************************************************************************************************************************************/
 
     // //**************************************************************************************************************************************/
-    println!("Transaction manifest: Swap\n");
+    println!("Transaction manifest: Swap A\n");
     //**************************************************************************************************************************************/
     // Test the `swap` method.
     let manifest = ManifestBuilder::new()
         .withdraw_from_account_by_amount(account_component, dec!(10), token_a)
         .take_from_worktop_by_amount(amount_to_swap, token_a, |continue_transaction, bucket_id_a| {
             continue_transaction.call_method(component, "swap", args!(bucket_id_a))
+        })
+        .call_method(account_component, "deposit_batch", args!(ManifestExpression::EntireWorktop))
+        .build();
+    let receipt = test_runner.execute_manifest_with_max_cost_unit_limit(
+        manifest,
+        vec![NonFungibleGlobalId::from_public_key(&public_key)]
+    );
+    println!("{:?}\n", receipt);
+    receipt.expect_commit_success();
+    //**************************************************************************************************************************************/
+    // //**************************************************************************************************************************************/
+    println!("Transaction manifest: Swap B\n");
+    //**************************************************************************************************************************************/
+    // Test the `swap` method.
+    let manifest = ManifestBuilder::new()
+        .withdraw_from_account_by_amount(account_component, dec!(10), token_b)
+        .take_from_worktop_by_amount(amount_to_swap, token_b, |continue_transaction, bucket_id_b| {
+            continue_transaction.call_method(component, "swap", args!(bucket_id_b))
         })
         .call_method(account_component, "deposit_batch", args!(ManifestExpression::EntireWorktop))
         .build();

@@ -704,61 +704,83 @@ mod ociswap_module {
                     all_output_tokens.push(bin_bucket);
                 }
             } else {
-                // B to A  <- self.b_token_address B to A
                 // Input tokens B
 
+                // Calculate how much of token B we will return.
                 let mut a_amount = input_tokens.amount() / price_of_active_bin;
-
                 debug!("[swap]: B amount input (provided): {}", input_tokens.amount());
                 debug!("[swap]: A amount output (that will be returned if we stay in active Bin): {}", a_amount);
 
                 // Get A active bin
-                let mut my_a_bin = self.a_bins.get_mut(&self.active_bin).unwrap();
+                let mut active_bin = self.a_bins.get_mut(&self.active_bin).unwrap();
 
-                while my_a_bin.bin_vault.amount() > Decimal::zero() {
-                    // Check amount of B available.
-                    if a_amount <= my_a_bin.bin_vault.amount() {
-                        // Enough B in active bin.
-                        let mut my_b_bin = self.b_bins.get_mut(&self.active_bin).unwrap();
-                        my_b_bin.bin_vault.put(input_tokens);
+                // We'll keep taking token A while we have some in active Bin
+                while active_bin.bin_vault.amount() > Decimal::zero() {
+                    if a_amount <= active_bin.bin_vault.amount() {
+                        // If A amount less than A amount in active Bin go directly to last swap
                         break;
                     } else {
-                        // More A than B.
+                        // Not enough A Tokens for the whole swap, get what's in the active Bin and to next one.
 
-                        // [Check] Calculate again with new price.
+                        // Calculate new amount of A tokens with price of new active Bin
                         a_amount =
                             price_of_active_bin *
                             (input_tokens.amount() -
-                                my_a_bin.bin_vault.amount() / price_of_active_bin);
+                                active_bin.bin_vault.amount() * price_of_active_bin);
 
-                        //self.swap(my_b_bin.bin_vault.take(my_b_bin.bin_vault.amount()));
-                        let my_a_bin_amount = my_a_bin.bin_vault.amount();
-                        my_a_bin.bin_vault.take(my_a_bin_amount);
+                        // Taking amount of A in the Bin.
+                        let active_bin_amount = active_bin.bin_vault.amount();
+                        let bin_bucket = active_bin.bin_vault.take(active_bin_amount);
+                        all_output_tokens.push(bin_bucket);
 
+                        // Get current B Bin to deposit B Tokens
+                        let mut my_b_bin = self.b_bins.get_mut(&self.active_bin).unwrap();
+                        // Depositing swaped B Tokens to B Bin
+                        // No taking all the B tokens since not enough B tokens
+                        let transition_bucket = input_tokens.take(
+                            active_bin_amount * price_of_active_bin
+                        );
+                        my_b_bin.bin_vault.put(transition_bucket);
+
+                        info!(
+                            "[swap]: Swapped B amount {} to A Amount {}. For price {} of Bin {}",
+                            active_bin_amount * price_of_active_bin,
+                            active_bin_amount,
+                            price_of_active_bin,
+                            self.active_bin
+                        );
+
+                        // Moving to next Bin
                         self.active_bin = self.active_bin - 1; // [Check] Decimal + i32.
-
+                        // Calculating new price of active Bin
                         price_of_active_bin = self.get_price(self.active_bin);
-                        // [TODO] Calculate A amount to take.
-
-                        my_a_bin = self.a_bins.get_mut(&self.active_bin).unwrap();
+                        // New active Bin
+                        active_bin = self.a_bins.get_mut(&self.active_bin).unwrap();
                     }
                 }
-                // [TODO][Check] Get amount of A and take fees from B.
-                let bin_bucket = my_a_bin.bin_vault.take(a_amount);
-                all_output_tokens.push(bin_bucket);
+
+                // No more A Tokens, returning B Token left
+                if active_bin.bin_vault.amount().is_zero() {
+                    info!(
+                        "[swap!]: Active Bin empty! Returning A amount {} left",
+                        input_tokens.amount()
+                    );
+                    all_output_tokens.push(input_tokens);
+                } else {
+                    // Give A amount to user and get B Tokens.
+                    let mut my_b_bin = self.b_bins.get_mut(&self.active_bin).unwrap();
+                    info!(
+                        "[swap]: Swaping last A tokens {}. We have in active Bin B amount {}",
+                        input_tokens.amount(),
+                        active_bin.bin_vault.amount()
+                    );
+                    my_b_bin.bin_vault.put(input_tokens);
+                    let bin_bucket = active_bin.bin_vault.take(a_amount);
+                    all_output_tokens.push(bin_bucket);
+                }
             }
 
-            info!(
-                "[swap]: A amount in active bin after Swap: {}, ID: {}",
-                self.a_bins.get_mut(&self.active_bin).unwrap().bin_vault.amount(),
-                self.b_bins.get_mut(&self.active_bin).unwrap().bin_id
-            );
-            info!(
-                "[swap]: B amount in active bin after Swap: {}, ID: {}",
-                self.b_bins.get_mut(&self.active_bin).unwrap().bin_vault.amount(),
-                self.b_bins.get_mut(&self.active_bin).unwrap().bin_id
-            );
-
+            // [TEST] Check all output amount
             let mut total_output: Decimal = dec!(0);
             for i in all_output_tokens.iter() {
                 total_output += i.amount();
